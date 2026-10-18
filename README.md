@@ -119,11 +119,6 @@ There is no release yet. The first one will bring installers for macOS, Windows 
 [GitHub Releases](https://github.com/amigoer/bucky/releases). Choose Watch → Custom → Releases
 on this repository to get notified.
 
-## Sister project
-
-[MQ Studio](https://github.com/amigoer/mq-studio) does for message queues what Bucky does for
-object storage: one local-first desktop app for RocketMQ, Kafka, RabbitMQ, Pulsar and more.
-
 ## Feedback
 
 Ideas, requests and bug reports are welcome in

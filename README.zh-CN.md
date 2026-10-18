@@ -92,10 +92,6 @@ agent 会先找出这些文件，把执行计划拿给你看，等你同意后�
 
 目前还没有发布版本。第一个版本会在 [GitHub Releases](https://github.com/amigoer/bucky/releases) 提供 macOS、Windows、Linux 安装包。在本仓库页面选择 Watch → Custom → Releases，发布时就会收到通知。
 
-## 姊妹项目
-
-[MQ Studio](https://github.com/amigoer/mq-studio) 之于消息队列，就像 Bucky 之于对象存储：一个本地优先的桌面应用，统一管理 RocketMQ、Kafka、RabbitMQ、Pulsar 等消息队列。
-
 ## 反馈
 
 想法、需求和 bug 都欢迎提到 [GitHub Issues](https://github.com/amigoer/bucky/issues)。
