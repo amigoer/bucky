@@ -1,13 +1,13 @@
 # ADR-001：技术栈选型
 
-- 状态：已采纳
+- 状态：已采纳；存储接入范围与阶段由 [ADR-002](0002-r2-first-storage.md) 修订
 - 日期：2026-10-18
 
 ## 背景
 
 SPEC 的「技术栈」一节给出了方向性选型，并要求查清各项的当前状态后写入本 ADR。作者已拍板桌面外壳用 Wails v3、前端用 React。本 ADR 记录最终选型和 2026-10-18 的核实结果。
 
-下文版本号是核实当天的最新版，作为 Phase 0 锁定依赖的基线。届时如有新的补丁版本可以直接采用，并同步更新本表；跨次版本升级单独提交。
+下文版本号是核实当天的选型基线，实施时重新核实并锁定；跨次版本升级单独提交。依赖按开发阶段引入，不把全表当作 Phase 0 安装清单。v0.1 只接 R2；后续类型和阶段以 [开发规划](../development-plan.md) 为准。
 
 ## 决策
 
@@ -56,9 +56,9 @@ SPEC 的「技术栈」一节给出了方向性选型，并要求查清各项的
 | 用途 | 模块 | 版本 |
 | --- | --- | --- |
 | S3 兼容层 | github.com/aws/aws-sdk-go-v2（+ service/s3、config） | v1.47.3（s3 v1.114.3，config v1.33.9） |
-| 阿里云 OSS | github.com/aliyun/alibabacloud-oss-go-sdk-v2 | v1.6.1 |
-| 腾讯云 COS | github.com/tencentyun/cos-go-sdk-v5 | v0.7.75 |
-| 七牛 | github.com/qiniu/go-sdk/v7 | v7.29.0 |
+| 阿里云 OSS（v0.3） | github.com/aliyun/alibabacloud-oss-go-sdk-v2 | v1.6.1（参考，接入时复核） |
+| 腾讯云 COS（v0.5） | github.com/tencentyun/cos-go-sdk-v5 | v0.7.75（参考，接入时复核） |
+| 七牛（v0.5） | github.com/qiniu/go-sdk/v7 | v7.29.0（参考，接入时复核） |
 | 钥匙串 | github.com/zalando/go-keyring | v0.2.8 |
 | SQLite | modernc.org/sqlite | v1.60.1 |
 | CLI | github.com/spf13/cobra | v1.10.2 |
@@ -67,11 +67,11 @@ SPEC 的「技术栈」一节给出了方向性选型，并要求查清各项的
 | 测试 | github.com/stretchr/testify、github.com/testcontainers/testcontainers-go | v1.12.1 / v0.44.0 |
 | Lint | github.com/golangci/golangci-lint/v2 | v2.15.0 |
 
-- **分片上传不用 SDK 的 manager**：`feature/s3/manager` 在 v1.23.14 中已标记 Deprecated，由仍处于 v0.4.x 的 `feature/s3/transfermanager` 取代。两者都只在进程内存里维护分片状态，满足不了「杀进程后续传」的验收。transfer 引擎直接调用 service/s3 的 `CreateMultipartUpload`、`UploadPart`、`ListParts`、`CompleteMultipartUpload` 和 `AbortMultipartUpload`，把 upload id 和已完成的分片写进 SQLite。这两个包都不引入。
-- **完整性校验**：service/s3 的 `Options` 提供 `RequestChecksumCalculation` 和 `ResponseChecksumValidation`，取值包括 `aws.RequestChecksumCalculationWhenRequired` 和 `aws.ResponseChecksumValidationWhenRequired`。Phase 1 按厂商预设配置，并让集成测试覆盖。
-- **阿里云用 v2 SDK**：旧版 `aliyun-oss-go-sdk` 最后一次发版是 2023-12，不再使用。
-- **CDN 刷新另需 SDK**：阿里云和腾讯云的 CDN 刷新属于各自 CDN 产品的 OpenAPI，不在 OSS / COS SDK 里，需要额外引入 `github.com/alibabacloud-go/cdn-20180510` 和 `github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn`；七牛 go-sdk 自带 `cdn` 包。这些到 Phase 6 再核实版本，Phase 0 不引入。
-- **钥匙串**：go-keyring 在三个平台上都不需要 cgo。macOS 通过 stdin 把密码交给 `security -i`，不会出现在进程参数里；单条命令上限 4096 字节，存 access key 足够。Linux 依赖 D-Bus Secret Service，没有桌面会话的服务器上用不了，Phase 1 需要决定这种环境下 CLI 从哪里取凭证。
+- **分片上传不用 SDK 的 manager**：`feature/s3/manager` 在 v1.23.14 中已标记 Deprecated，由仍处于 v0.4.x 的 `feature/s3/transfermanager` 取代。两者都只在进程内存里维护分片状态，满足不了「杀进程后续传」的验收。transfer 引擎通过驱动契约调用 `CreateMultipartUpload`、`UploadPart`、`ListParts`、`CompleteMultipartUpload` 和 `AbortMultipartUpload`，把 upload id 和已完成的分片写进 SQLite。这两个包都不引入。
+- **完整性校验**：service/s3 的 `Options` 提供 `RequestChecksumCalculation` 和 `ResponseChecksumValidation`，取值包括 `aws.RequestChecksumCalculationWhenRequired` 和 `aws.ResponseChecksumValidationWhenRequired`。Phase 1 先按 R2 兼容表配置，后续每种类型独立验证，并让集成测试覆盖。
+- **阿里云用 v2 SDK**：v0.3 以原生适配器承载 OSS 基础读写，不限于增强功能；首版不引入。旧版 `aliyun-oss-go-sdk` 不再使用。
+- **CDN 刷新另需 SDK**：阿里云和腾讯云的 CDN 刷新属于各自 CDN 产品的 OpenAPI，不在 OSS / COS SDK 里，需要额外引入 `github.com/alibabacloud-go/cdn-20180510` 和 `github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn`；七牛 go-sdk 自带 `cdn` 包。这些在各原生类型的增强阶段再核实版本，首版不引入。
+- **钥匙串**：go-keyring 在三个平台上都不需要 cgo。macOS 通过 stdin 把密码交给 `security -i`，不会出现在进程参数里；单条命令上限 4096 字节，存 access key 足够。Linux 依赖 D-Bus Secret Service，没有可用桌面钥匙串时，CLI 只允许显式使用该次进程环境凭证，不回退为明文文件；Phase 1 验证平台行为。
 
 ### 集成测试后端：MinIO + RustFS
 
@@ -80,7 +80,7 @@ SPEC 的「技术栈」一节给出了方向性选型，并要求查清各项的
   - RustFS：`rustfs/rustfs:1.0.3`（Apache-2.0，活跃维护）。
   - MinIO：`cgr.dev/chainguard/minio`，由 Chainguard 基于最后一版社区源码持续构建。免费版只提供 `latest` tag，Phase 0 按 digest 锁定；备用镜像是已冻结的 `bitnamilegacy/minio:2025.7.23-debian-12-r5`。
 - 测试代码用 testcontainers-go 的通用容器启动后端，不用其 minio 模块（它的默认镜像来自已停更的 quay.io）。另提供 docker compose 供本地手动调试。
-- MinIO 仍保留为厂商预设，因为存量的自建实例很多。
+- MinIO 与 RustFS 首版仅作协议测试后端；对应产品连接留到 v0.4，不将测试通过等同 R2 验证。真实 R2 的权限、签名、校验、预览与续传须单独验收。
 
 ## 备选方案
 
@@ -89,12 +89,12 @@ SPEC 的「技术栈」一节给出了方向性选型，并要求查清各项的
 - **TypeScript 6.0 + ESLint + typescript-eslint + Prettier**：规则最全、生态最成熟，但停留在上一代 TypeScript，迟早要再迁移一次。
 - **aws `feature/s3/manager` 或 `transfermanager`**：前者已弃用，后者仍是 v0.x，而且两者都不支持跨进程续传。
 - **只用 MinIO 旧镜像**：镜像不再更新，来源也在收紧，长期看是一个死依赖。
-- **只用 RustFS**：测不到 MinIO 的行为差异，而 MinIO 是首发预设之一。
+- **只用 RustFS**：测不到另一种实现的协议差异；保留双后端契约测试，但它们不属于首版产品支持范围。
 
 ## 后果
 
 - Wails v3 在 beta 期间 API 可能变化，需要持续跟进版本；影响面被限制在 `cmd/bucky-desktop` 和 `internal/app` 两处。
-- 自己管理分片状态会增加 transfer 引擎的复杂度，但这是续传验收的前提，也是 v0.2 远端到远端复制要复用的能力。
+- 自己管理分片状态会增加 transfer 引擎的复杂度，但这是续传验收的前提，也是后续跨云复制可以复用的能力；v0.2 优先接入 AWS S3。
 - Biome 没有基于类型信息的 lint 规则，需要靠 TypeScript 严格模式和测试来弥补。
 - MinIO 镜像依赖第三方构建，digest 失效或拉取受限时要更换来源；RustFS 保证即使 MinIO 暂时不可用，CI 仍有一个后端可跑。
 - CI 要跑两遍集成测试，耗时会增加几分钟。

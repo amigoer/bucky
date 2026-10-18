@@ -3,7 +3,7 @@
 
   <h3>One desktop app for all your object storage</h3>
 
-  <p>Browse, upload, preview and share files on Cloudflare R2, AWS S3, Alibaba Cloud OSS, Tencent Cloud COS,<br>Qiniu and any S3-compatible service, and let your AI agent lend a hand, safely.</p>
+  <p>Browse, upload, preview and share your files, starting with Cloudflare R2.<br>AWS S3, Alibaba Cloud OSS and more will follow, with the same workflow for you and your AI agent.</p>
 
   <p>
     <img src="https://img.shields.io/badge/status-early%20development-F59E0B?style=flat-square&labelColor=1A1A1E" alt="Status: early development">
@@ -24,8 +24,9 @@
 <br>
 
 > [!NOTE]
-> Bucky is in early development and has not been released yet. This page describes the first
-> version as it is being built. Star or watch the repository to hear when it ships.
+> Bucky is in early development and has not been released yet. The first release targets
+> Cloudflare R2 only. The features below are planned; other storage providers will follow in
+> separate releases.
 
 ## Why Bucky
 
@@ -33,12 +34,11 @@ Every cloud has its own console, its own tool, and its own way of doing the same
 Bucky brings them together.
 
 - **Free and open source, on every desktop.** One app for macOS, Windows and Linux.
-- **Every provider in one place.** Connections to R2, S3, OSS, COS, Qiniu and more sit side by
-  side. The Chinese clouds connect through their own APIs, so extras such as CDN cache refresh
-  are there too.
+- **Start with R2, grow from there.** The first release focuses on R2. AWS S3, Alibaba Cloud
+  OSS and other providers will follow, keeping the same browsing and transfer workflow.
 - **Made for AI agents.** A command line tool, an MCP server and an Agent Skill let Claude Code,
   Codex or Cursor work with your buckets, through the connections you have already set up.
-- **Nothing changes without your say.** Before anything is deleted, moved or overwritten, Bucky
+- **Review destructive changes first.** Before anything is deleted, moved or overwritten, Bucky
   shows exactly what will change and waits for you to confirm, whether you clicked or an agent
   asked.
 - **Your keys stay yours.** Credentials live in your system keychain and never appear in logs or
@@ -46,35 +46,41 @@ Bucky brings them together.
 
 ## What you can do
 
+The R2 release is being built around these workflows:
+
 - **Browse** buckets as folders, with breadcrumbs, list and grid views, sorting, search and an
-  info panel. Folders holding a hundred thousand files still scroll smoothly.
+  info panel. Paginated lists are designed to keep large folders responsive.
 - **Preview** images, audio, video, PDFs, text, code and JSON. Videos stream, so there is no
   waiting for a full download.
 - **Upload and download** files and whole folders by dragging them in. Large files go up in
   parts. Transfers can be paused, resumed and retried, carry on after a dropped connection or a
   restart, and are verified when they finish.
-- **Share** a link that expires when you choose (one hour by default), a public link, or a link
-  on your own domain or CDN, copied in one click.
+- **Share** a temporary link for a single file, valid for up to seven days (one hour by
+  default). Public links use a domain you have already connected to your bucket.
 - **Host images** for your blog or docs: press a shortcut to upload the image on your clipboard,
   name it with a pattern like `{year}/{month}/{hash}.{ext}`, optionally compress it or convert
   it to WebP, and get a Markdown link ready to paste.
 - **See usage** by folder and file type, counted in the background while you keep working.
-- **Clean up in bulk.** Delete, move or rename many files at once, with a preview of every
-  change first.
+- **Clean up in bulk.** Copy, move or delete files within the same connection, with a preview
+  before anything is moved, deleted or overwritten.
 
 Bucky speaks English and Chinese, comes in light and dark themes, and has keyboard shortcuts
 throughout.
 
 ## Supported storage
 
-| Provider | What you get |
+| Storage | Planned release |
 | --- | --- |
-| Cloudflare R2, AWS S3, Backblaze B2, Wasabi, DigitalOcean Spaces, MinIO | Ready-made presets: pick the provider, add your keys, connect |
-| Alibaba Cloud OSS, Tencent Cloud COS, Qiniu Kodo | Presets plus provider-only features such as CDN cache refresh |
-| Any other S3-compatible service | Connect with a custom endpoint |
+| Cloudflare R2 | v0.1: the first release |
+| AWS S3 | v0.2 |
+| Alibaba Cloud OSS | v0.3 |
+| Custom S3-compatible endpoints, MinIO, RustFS, Backblaze B2, Wasabi, DigitalOcean Spaces | v0.4: verified service by service |
+| Tencent Cloud COS, Qiniu Kodo | v0.5: one provider at a time |
+| Azure Blob Storage, Google Cloud Storage and more | Later |
 
-Each connection only offers what its provider actually supports, so nothing fails halfway.
-Already using the AWS CLI? Bucky can import the profiles in `~/.aws/credentials`.
+No provider is available yet. R2 connections will support an explicit bucket name, so you
+can use bucket-scoped credentials without permission to list every bucket. Provider-specific
+features will be added after each provider's basic file operations are verified.
 
 ## Let your agent help
 
@@ -87,7 +93,8 @@ reports back.
 
 > Upload `dist` to R2 and give me a link that works for 7 days.
 
-One request, one link.
+For a folder such as `dist/`, the result is a list of links to its files, each with its own
+expiry. A folder is not a single downloadable object.
 
 - **Works with the tools you use.** Claude Code, Codex, Cursor and other MCP clients. Bucky
   installs its Skill for you from Settings, for one project or everywhere.
@@ -104,14 +111,16 @@ One request, one link.
 
 | Version | Coming |
 | --- | --- |
-| v0.1 | Everything on this page |
-| v0.2 | Copy and sync between two clouds, with an estimate of transfer costs before you start |
-| v0.3 | A security checkup that finds public buckets, overly broad policies and unencrypted storage |
-| v0.4 | Describe a bulk change in plain words, review the plan, then run it |
-| v1.0 | Mount a bucket as a drive in Finder and File Explorer |
+| v0.1 | A complete R2 workflow: browsing, reliable transfers, previews, sharing, image hosting and agents |
+| v0.2 | AWS S3, with the same desktop and agent workflows |
+| v0.3 | Alibaba Cloud OSS |
+| v0.4 | Custom S3 endpoints and verified compatible services |
+| v0.5 | Tencent Cloud COS and Qiniu Kodo |
+| Later | More storage types, cross-cloud copy and sync, security checkups and natural-language bulk operations |
+| v1.0 direction | Mount a bucket as a drive in Finder and File Explorer |
 
-Along the way: more providers such as Azure Blob Storage, Google Cloud Storage, Huawei Cloud OBS
-and Upyun, automatic updates, and installs through Homebrew, winget and Scoop.
+Storage integrations come first. Cross-cloud workflows will be planned once at least two
+providers are stable. Automatic updates and Homebrew, winget and Scoop distribution will follow.
 
 ## Download
 
@@ -124,4 +133,4 @@ on this repository to get notified.
 Ideas, requests and bug reports are welcome in
 [GitHub Issues](https://github.com/amigoer/bucky/issues).
 
-[Apache-2.0](LICENSE) © 2026 [amigoer](https://github.com/amigoer)
+[Apache-2.0](LICENSE) © 2026 [Amigoer](https://github.com/amigoer)

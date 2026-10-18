@@ -1,296 +1,155 @@
 # Bucky 需求与开发规范
 
-## 使用方式
+## 文档关系与当前范围
 
-本文档即仓库中的 `docs/SPEC.md`，把下面的启动指令发给 Claude Code 即可开始。项目定名 Bucky（原暂名 Bucket Studio）。
+Bucky 是开源、免费、全平台、AI 原生的对象存储桌面客户端。项目名为 Bucky，仓库为 `amigoer/bucky`，CLI 命令为 `bucky`。
 
-首条启动指令：
+**当前决定：v0.1 只接 Cloudflare R2，后续按存储类型接入 AWS S3、阿里云 OSS 等服务。** 本仓库仍处于文档规划阶段，尚未开始工程实现。
 
-```text
-请完整阅读 docs/SPEC.md，这是本项目的需求与开发规范。
-1. 先用你自己的话复述项目定位、v0.1 范围和整体架构，指出你认为有歧义或有风险的地方。
-2. 然后只执行「Phase 0：工程脚手架」，动手前先给出详细计划和验收标准，等我确认。
-3. 在仓库根目录创建 CLAUDE.md，记录关键约定和技术决策，之后每个阶段结束时更新。
-```
+| 文档 | 维护内容 |
+| --- | --- |
+| 本文档 | 产品范围、验收与工程规则 |
+| [开发架构](architecture.md) | 分层、模块、驱动边界、数据和关键流程 |
+| [开发规划](development-plan.md) | 唯一的阶段任务表、版本顺序与交付门槛 |
+| [ADR-001](adr/0001-tech-stack.md) | 技术栈及依赖选型 |
+| [ADR-002](adr/0002-r2-first-storage.md) | 简单分层、R2 首版与按类型扩展的决策 |
 
-后续每个阶段的指令：
+原先首版多厂商和 v0.2 直接开展跨云同步的范围由 ADR-002 替代。具体阶段清单只在开发规划维护，避免多份任务表漂移。
 
-```text
-继续执行 Phase N。先对照 docs/SPEC.md 列出本阶段的任务清单和验收标准，等我确认后再写代码。
-```
+## 开发方式
 
-## 角色与工作规则
+开始实现时，先阅读本规范、开发架构、开发规划和 ADR。只执行当次明确选择的阶段，先给出任务清单与验收标准，经确认后写代码；每阶段结束更新实现状态、验证结果与下一步。
 
-你是一名资深 Go 工程师兼桌面应用开发者，负责从零实现本项目。代码质量要经得起面试官逐行审阅，因为这个仓库也是作者的求职作品。
+首个代码阶段是「Phase 0：工程脚手架」。创建根目录开发约定并验证 Wails 入口、绑定生成和任务命令，不直接跨到全部存储与功能实现。
 
-1. 分阶段推进。每个阶段开始前输出任务清单和验收标准，等我确认后再写代码。
-2. 不确定第三方库的 API 时，先读官方文档或模块源码，禁止凭记忆编造接口。所有依赖锁定具体版本。
-3. 优先使用纯 Go 依赖，避免 cgo（Wails 桌面外壳和挂载阶段除外）。CLI 必须能以 `CGO_ENABLED=0` 构建。
-4. 核心包写单元测试，存储相关功能写基于 MinIO 与 RustFS 的集成测试。仓库里不得出现任何真实密钥。
-5. 小步提交，使用 Conventional Commits，一个提交只做一件事。
-6. 重要技术决策写成 ADR，放在 `docs/adr/`，包含背景、决策、备选方案和后果。
-7. 删除、覆盖、移动等破坏性操作，在代码层面必须先生成执行计划，经确认后再执行。
-8. 不得复刻 Blob0 或任何竞品的界面、文案、图标，设计要有自己的视觉语言。
-9. 遇到本文档没写清的产品决策，列出选项和你的建议，等我拍板，不要自行扩大范围。
-10. 每个阶段结束时跑通 lint 和全部测试，更新 CLAUDE.md 和 README 的相关部分，给出阶段总结与下一步建议。
+## 工作规则
 
-## 项目定位与竞品
+1. 不确定第三方 API 时，阅读官方文档或源码；依赖锁定具体版本，按当前阶段需要引入。
+2. 核心尽量使用纯 Go；桌面 Wails 和后续挂载除外，CLI 必须支持 `CGO_ENABLED=0` 构建。
+3. 业务用例写有意义的单元测试；存储协议运行 MinIO/RustFS 契约测试，并完成当前厂商真实服务验证。禁止在仓库、输出或日志中写真实密钥。
+4. 使用 Conventional Commits 小步提交。重要决策写 ADR，记录背景、决策、备选方案与后果。
+5. 删除、移动、覆盖等操作必须先出计划，再经确认执行。只读限制统一在业务用例层执行。
+6. 设计采用自己的界面、文案与图标，不复刻竞品。未确定的产品范围先说明建议，不自行扩大。
+7. 每阶段运行当前已有的 lint、类型检查和测试；记录未验证项，不把目标写成实测结果。
+8. 源代码、标识符、注释和提交信息使用英文；用户文档沿用各自语言。
 
-Bucky 是一款开源、免费、全平台、AI 原生的对象存储桌面客户端：一个客户端管理国内外所有对象存储，并让 AI agent 能安全地操作存储桶。
+## 产品定位
 
-目标用户有四类：日常管理 R2、S3、OSS、COS 的开发者；用对象存储做图床的博客和文档作者；需要跨云迁移的团队；用 Claude Code、Codex、Cursor 的 agent 用户。
+目标用户包括管理 R2/S3/OSS 的开发者、用对象存储做图床的内容作者，以及通过 CLI/MCP 操作存储的 agent 用户。跨云迁移团队在多个存储类型稳定后再覆盖。
 
-设计思路：本地优先的桌面应用，可插拔驱动，每个驱动声明自己的能力，界面只展示该能力支持的功能。
+产品方向：
 
-| 产品 | 形态 | 短板（即我们的机会） |
-| --- | --- | --- |
-| [Blob0](https://blob0.com/) | 闭源，仅 macOS，16.9 美元买断，带 CLI 和 Agent Skill | 不开源、不免费、没有 Windows 和 Linux、没有国内云原生能力、不能挂载 |
-| [Can](https://github.com/100gle/can) | 开源，Go + Wails + React | 仍是 MVP/Beta，厂商适配不完整 |
-| [Brows3](https://github.com/rgcsekaraa/brows3) | 开源，Rust + Tauri | 偏海外 S3 生态，没有 AI 和 agent 能力 |
-| [AnySCP](https://github.com/macnev2013/anySCP) | 开源，SSH、SFTP、S3 三合一 | S3 只是附属功能 |
-| Cyberduck、S3 Browser、各云厂商官方工具 | 老牌工具 | 界面老旧、各管一家，S3 Browser 只支持 Windows |
-
-差异化只有四点，所有功能取舍都围绕它们：
-
-- 全平台、开源、免费。
-- 国内外全覆盖，国内云走原生 SDK，能用上 CDN 刷新、图片处理等独有能力。
-- AI 原生：CLI、MCP、Skill 三件套，默认安全。
-- 后续版本提供跨云迁移和挂载为本地磁盘。
+- macOS、Windows、Linux 上统一的桌面体验，开源免费。
+- 本地优先，凭证留在系统钥匙串，默认无遥测。
+- 国内外存储逐类接入，按实际能力展示功能。
+- GUI、CLI、MCP 复用连接和业务规则，Agent Skill 引导先定位、预览，再执行。
+- 后续提供跨云同步、安全体检和磁盘挂载，不把未来功能作为首版前置依赖。
 
 ## 技术栈
 
-后端全部用 Go，桌面外壳用 Wails v3，前端用 React。具体版本、核实结果和取舍理由见 [ADR-001](adr/0001-tech-stack.md)。
+具体版本以 ADR-001 为基线，实施时核实并精确锁定。
 
-| 层 | 选型 | 说明 |
+| 层 | 选型与边界 |
+| --- | --- |
+| 后端 | Go，单一 module `github.com/amigoer/bucky` |
+| 桌面 | Wails v3，前后端运行时同版本；仅桌面入口与 `internal/app` 依赖 Wails |
+| 前端 | React、TypeScript、Vite、Tailwind CSS、shadcn/ui；TanStack Query/Virtual、Zustand、i18next |
+| 前端工程 | pnpm、Node 24 LTS、Biome、Vitest |
+| R2 / S3 | AWS SDK for Go v2 `service/s3`；协议差异集中在适配器和类型配置 |
+| OSS 及其他原生服务 | 对应版本增加原生 SDK；OSS 基础读写也使用原生适配器 |
+| 凭证与数据 | 系统钥匙串 + SQLite（modernc.org/sqlite），不在 SQLite 存密钥 |
+| CLI / MCP | Cobra、官方 MCP Go SDK，复用同一应用服务 |
+| 测试 | Go testing、testify、testcontainers-go；MinIO/RustFS 和显式真实云验证 |
+| 构建与质量 | Taskfile、golangci-lint、Biome、GitHub Actions 三平台检查 |
+
+## 架构约束
+
+架构为「入口适配 → 应用服务 → 核心契约 → 存储适配」，模块和数据流见开发架构。
+
+- 一个本地核心，不引入业务服务器、微服务或运行时插件系统。各入口独立启动，共用配置和 SQLite，写任务通过进程锁避免竞争。
+- `service` 处理连接、浏览、传输编排、只读与执行计划；`app`、CLI 和 MCP 只转换输入输出。
+- `core` 的中立模型不暴露云 SDK、Wails 或数据库类型；`drivers` 处理厂商 API、签名、分页和错误差异。
+- 基础读写使用小接口；桶发现、分片、预签名和复制等为可选能力。声明能力不代表当前凭证一定有权限。
+- 长任务可取消、可查询状态；传输与执行计划持久化，重启后先核对状态再恢复；统计缓存可失效重算。
+- 未来适配器按实际阶段创建，不在首版加入空驱动、未使用 SDK 或未验证的连接入口。
+
+## 存储类型与支持范围
+
+| 类型 | 版本 | 边界 |
 | --- | --- | --- |
-| 语言 | Go 1.27 | 单一 module `github.com/amigoer/bucky` |
-| 桌面框架 | Wails v3（锁定 v3.0.0-beta.31） | v3 仍是 beta，必须锁定精确版本；只有 `cmd/bucky-desktop` 和 `internal/app` 可以依赖 Wails |
-| 前端 | React 19 + TypeScript 7 + Vite 8 + Tailwind CSS 4 + shadcn/ui | 十万级对象列表用 TanStack Virtual 虚拟滚动；远端数据用 TanStack Query，界面状态用 Zustand；中英双语用 i18next |
-| 前端工程 | pnpm、Node 24 LTS、Biome、Vitest | typescript-eslint 不支持 TS 7，lint 和格式化统一用 Biome |
-| S3 兼容层 | aws-sdk-go-v2 service/s3 | 所有厂商的基础读写都走这一层；分片上传直接调用 Multipart API 并自管状态，不用已弃用的 s3/manager |
-| 国内云原生能力 | 阿里云 alibabacloud-oss-go-sdk-v2、腾讯云 cos-go-sdk-v5、七牛 go-sdk/v7 | 只用于 CDN 刷新、图片处理等独有功能；阿里云和腾讯云的 CDN 刷新要另外引入各自的 CDN SDK，Phase 6 核实 |
-| 凭证 | 系统钥匙串，zalando/go-keyring | 本地只存非敏感的连接元数据 |
-| 本地数据 | SQLite，纯 Go 驱动 modernc.org/sqlite | 存连接配置、传输历史、统计缓存 |
-| CLI | cobra | 与桌面端共用 core；必须能以 `CGO_ENABLED=0` 构建 |
-| MCP | 官方 Go SDK github.com/modelcontextprotocol/go-sdk | 工具注解的字段名在 Phase 5 按当时的规范核实 |
-| 日志 | log/slog | 日志中禁止出现密钥 |
-| 测试 | testing + testify，testcontainers-go 启动 MinIO 与 RustFS | 同一套集成测试对两个后端各跑一遍并进 CI；MinIO 社区版已停止维护，镜像来源见 ADR-001 |
-| 构建发布 | Taskfile（go-task，Wails v3 自带）+ GitHub Actions 三平台矩阵构建 | 不另建 Makefile；macOS 签名与公证放到 v0.2 之后 |
+| Cloudflare R2 | v0.1 | 唯一首版类型，已有桶内的对象管理；支持指定桶名和桶级凭证 |
+| AWS S3 | v0.2 | 复用 S3 协议实现，先覆盖普通桶与明确的凭证来源 |
+| 阿里云 OSS | v0.3 | 原生 SDK 基础接入，CDN/图片处理按能力增量开放 |
+| 通用 S3 兼容服务 | v0.4 | 自定义 endpoint 和经验证的 MinIO/RustFS/B2/Wasabi/Spaces 等预设 |
+| 腾讯云 COS / 七牛 Kodo | v0.5 | 逐类型接入，原生功能分别验收 |
+| Azure Blob / Google Cloud Storage 等 | 后续 | 非 S3 协议，新增独立适配器 |
 
-## 架构与目录结构
+MinIO 和 RustFS 在 v0.1 仅作为协议测试后端，不代表已提供这些连接类型。“兼容 S3”不能替代每家服务的真实验证。
 
-核心引擎与界面完全解耦：桌面 GUI、CLI、MCP 三个入口共用同一个 core，保证 agent 能做的事和桌面端永远一致。
+## v0.1：R2 功能范围与验收
 
-```text
-bucky/
-├── cmd/
-│   ├── bucky-desktop/     # 桌面应用入口（Wails）
-│   └── bucky/             # CLI 入口，含 `bucky mcp` 子命令
-├── internal/
-│   ├── core/              # 领域模型、Driver 接口、Capability、错误类型
-│   ├── drivers/
-│   │   ├── s3compat/      # 通用 S3 兼容驱动 + 各厂商预设
-│   │   ├── aliyunoss/     # 阿里云 OSS 原生能力
-│   │   ├── tencentcos/    # 腾讯云 COS 原生能力
-│   │   └── qiniu/         # 七牛原生能力
-│   ├── profile/           # 连接配置、钥匙串、导入 ~/.aws/credentials
-│   ├── transfer/          # 传输引擎：队列、并发、分片、断点续传、校验、限速
-│   ├── ops/               # 高层操作：批量删除、移动、复制，统一 Plan/Execute
-│   ├── share/             # 预签名链接、公开链接、自定义域名
-│   ├── imagebed/          # 图床：路径模板、压缩、Markdown 链接
-│   ├── agent/             # MCP server、Skill 生成与安装
-│   ├── store/             # SQLite 持久化
-│   └── app/               # 暴露给 Wails 前端的服务层，只做参数转换
-├── frontend/              # React 前端
-├── build/                 # Wails v3 构建资源与各平台 Taskfile
-├── docs/                  # SPEC.md、architecture.md、adr/
-├── test/integration/      # 基于 MinIO 与 RustFS 的集成测试
-└── Taskfile.yml
-```
-
-三条硬性约定：
-
-- `app` 层只做参数转换和事件推送，不写业务逻辑。
-- 所有破坏性操作统一走 Plan/Execute 两步：先生成计划（涉及哪些对象、多少字节、是否覆盖），再执行。GUI 的确认框、CLI 的 `--dry-run`、MCP 的预览工具都基于同一个 Plan。
-- 长任务（传输、统计、批量操作）都可取消、可查询进度，状态持久化到 SQLite，应用重启后可恢复。
-
-## 驱动接口设计
-
-驱动层采用「接口 + 能力声明」模式：基础读写是所有驱动必须实现的接口，厂商独有功能做成可选接口，界面根据声明的能力决定显示什么。下面是方向性草图，具体签名由你在 Phase 1 细化，并写成 ADR-002。
-
-```go
-type Capability string
-
-const (
-    CapPresign        Capability = "presign"
-    CapMultipart      Capability = "multipart"
-    CapServerSideCopy Capability = "server_side_copy"
-    CapVersioning     Capability = "versioning"
-    CapStorageClass   Capability = "storage_class"
-    CapLifecycle      Capability = "lifecycle"
-    CapCORS           Capability = "cors"
-    CapBucketPolicy   Capability = "bucket_policy"
-    CapCDNRefresh     Capability = "cdn_refresh"
-    CapImageProcess   Capability = "image_process"
-)
-
-type Driver interface {
-    Name() string
-    Capabilities() CapabilitySet
-    ListBuckets(ctx context.Context) ([]Bucket, error)
-    List(ctx context.Context, in ListInput) (ListPage, error) // prefix + delimiter + 分页 token
-    Stat(ctx context.Context, ref ObjectRef) (ObjectInfo, error)
-    Get(ctx context.Context, ref ObjectRef, rng *Range) (io.ReadCloser, ObjectInfo, error)
-    Put(ctx context.Context, in PutInput) (ObjectInfo, error)
-    Multipart(ctx context.Context, ref ObjectRef, opts MultipartOptions) (MultipartUpload, error)
-    Copy(ctx context.Context, src, dst ObjectRef) error
-    DeleteBatch(ctx context.Context, bucket string, keys []string) ([]DeleteResult, error)
-    Presign(ctx context.Context, in PresignInput) (string, error)
-}
-
-// 厂商独有能力用可选接口，调用方通过类型断言获取
-type CDNRefresher interface {
-    RefreshCDN(ctx context.Context, urls []string) error
-}
-```
-
-首发支持的厂商预设：Cloudflare R2、AWS S3、MinIO、阿里云 OSS、腾讯云 COS、七牛 Kodo、Backblaze B2、Wasabi、DigitalOcean Spaces。每个预设包含 endpoint 模板、region 规则、path-style 或 virtual-host 寻址方式，这些细节一律以厂商官方文档为准，实现时逐一核实，不要凭印象填写。
-
-兼容性提醒：aws-sdk-go-v2 较新的版本默认会计算并发送完整性校验（CRC 类 checksum），部分 S3 兼容服务可能因此报错。请核实这一行为，按厂商把校验配置为仅在必需时计算，并让集成测试覆盖到。
-
-## v0.1 功能范围与验收标准
-
-v0.1 只做下表十个模块，目标是界面精致、传输可靠、agent 好用。跨云同步、安全体检、挂载等全部留到后续版本，不得提前实现。
+首版完成下表，在一个存储类型上验证完整体验。其他厂商、跨连接复制、跨云同步、桶创建/删除、云账号管理、AWS profiles 导入、自动更新和挂载均不纳入首版。
 
 | 模块 | 必须做到 | 验收标准 |
 | --- | --- | --- |
-| 连接管理 | 厂商预设、自定义 endpoint、测试连接、多配置切换、导入 ~/.aws/credentials | MinIO 和 R2 均能连通；密钥只存在系统钥匙串 |
-| 浏览 | 桶列表、按前缀当文件夹浏览、面包屑、列表与网格视图、排序、当前前缀内搜索、元数据面板 | 10 万对象的前缀滚动流畅，分页加载不阻塞界面 |
-| 预览 | 图片、音视频（用预签名链接流式播放）、PDF、文本/代码/JSON（有大小上限） | 不完整下载即可预览大视频；超限文件给出明确提示 |
-| 文件操作 | 拖拽上传文件和文件夹、下载、新建文件夹、重命名和移动（复制 + 删除，提示代价）、批量删除 | 所有破坏性操作先展示计划，二次确认后执行 |
-| 传输队列 | 并发数可配、大文件自动分片、暂停/继续/取消/重试、断点续传、速度与剩余时间、完成后校验 | 5 GB 文件上传中途断网或杀进程，重启后能续传且校验通过 |
-| 分享 | 预签名链接（自定义有效期）、公开链接、按连接配置自定义域名或 CDN 域名 | 一键复制链接；预签名默认有效期 1 小时 |
-| 用量面板 | 按前缀和文件类型统计数量与大小，后台计算并缓存，显示统计时间 | 统计不阻塞界面，可随时取消 |
-| 图床 | 全局快捷键上传剪贴板图片、路径模板如 `{year}/{month}/{hash}.{ext}`、可选压缩与转 WebP、自动复制 Markdown 链接 | 网络正常时，从截图到拿到链接不超过 3 秒 |
-| Agent 接入 | CLI、MCP server、Agent Skill，细节见下一节 | 见下一节的验收场景 |
-| 基础体验 | 中英双语、明暗主题、键盘快捷键、友好的空状态与错误提示 | 两种主题、两种语言下逐页走查无错位 |
+| 连接 | R2 Account ID 与 S3 凭证、指定桶名、测试连接、多配置切换、只读连接、系统钥匙串 | 桶级凭证无列桶权限仍能使用指定桶；错误权限有准确提示；密钥不出现在前端持久状态或数据库 |
+| 浏览 | 桶发现或指定桶、prefix 文件夹、面包屑、列表/网格、分页、排序、搜索、元数据 | 10 万对象数据集的分页与虚拟滚动不阻塞界面；区分已加载筛选和全 prefix 搜索/排序 |
+| 预览 | 图片、音视频、PDF、文本/代码/JSON；文本有大小上限，媒体按需读取 | 大视频不必完整下载；超限有提示；WebView 的实际 CORS 行为已验证 |
+| 对象操作 | 文件/目录拖拽上传、下载、文件夹标记、复制、重命名/移动、批量删除 | 同一连接内操作；复制后才删源；覆盖/移动/删除先预览并确认；批量部分失败可查询 |
+| 传输 | 并发、分片、暂停/继续/取消/重试、断点续传、进度、速度、剩余时间、限速和校验 | 5 GB 文件断网/终止进程后能恢复，重新下载哈希一致；源文件变化会阻止错误续传 |
+| 分享 | 临时链接、已配置公开域名链接，一键复制 | 临时链接默认 1 小时、R2 最长 7 天；S3 预签名和自定义公开域名分开处理；目录返回链接清单 |
+| 用量 | 按 prefix、文件类型后台统计数量与大小，缓存并显示时间和范围 | 可取消、不阻塞界面，不将部分扫描冒充全量统计 |
+| 图床 | 剪贴板快捷上传、路径模板、可选压缩/WebP、复制 Markdown 链接 | 正常网络下小图目标 3 秒，记录实测环境；临时链接明确到期时间 |
+| Agent | CLI、MCP、Agent Skill，复用 R2 连接和用例 | 下面两条场景通过；只读、确认和错误行为与 GUI 一致 |
+| 基础体验 | 中英双语、明暗主题、快捷键、完整的加载/空/错误状态 | 两种语言与主题逐页走查，三平台主流程通过 |
 
-## AI 原生：CLI、MCP 与 Agent Skill
+R2 region 使用 `auto`，endpoint 按账号和地域管辖配置。首版不要求 Cloudflare 管理 API token，不修改桶权限或 CORS。生成预签名是本地签名，不等同连接/权限验证。详细限制与官方资料见开发架构。
 
-Agent 能力是首发卖点，三件套共用 core，复用桌面端已配置的连接，默认安全：读操作直接执行，写操作先出计划。
+## CLI、MCP 与 Agent Skill
 
-**CLI（命令名 `bucky`）**
+CLI 命令名为 `bucky`。以只读命令先验证驱动，再实现写操作，最后开放 MCP 和 Skill。命令与工具的实际签名在相应阶段核实并记录，首版不能声明尚未实现的入口。
 
-| 命令 | 作用 |
+| CLI 能力 | 说明 |
 | --- | --- |
-| `bucky profiles list` | 列出已配置的连接（不含任何密钥） |
-| `bucky ls <profile>:<bucket>/<prefix>` | 列出对象 |
-| `bucky find` | 按 `--older-than`、`--larger-than`、`--name` 通配、`--sort` 查找对象 |
-| `bucky stat` | 查看对象元数据 |
-| `bucky cp` | 本地与远端互传，或远端到远端（含跨厂商） |
-| `bucky mv` / `bucky rm` | 移动、删除，非交互环境默认只出计划 |
-| `bucky presign --expires 7d` | 生成预签名链接 |
-| `bucky du` | 统计前缀的数量与大小 |
-| `bucky upload-image` | 图床上传，返回 Markdown 链接 |
+| `profiles` | 添加、测试、列举连接；不输出密钥，不通过命令行参数接收密钥 |
+| `ls`、`stat`、`find` | 浏览、元数据、按名称/时间/大小查找；说明扫描范围 |
+| `cp` | 本地与 R2 互传、同一 R2 连接内复制；不支持跨连接 |
+| `mv`、`rm` | 移动/删除，默认先生成计划 |
+| `presign` | 单对象临时下载链接，默认 1 小时 |
+| `du` | prefix 数量与大小统计 |
+| `upload-image` | 图床上传并返回 Markdown 链接 |
+| `mcp` | stdio MCP server |
 
-全局约定：
+所有命令支持稳定的 `--json` 结果和错误结构，实施时新增 `docs/cli-schema.md`。退出码：0 成功，1 一般错误，2 参数错误，3 部分失败，4 需要确认。
 
-- 所有命令支持 `--json`，输出结构稳定并在 `docs/cli-schema.md` 中写明；错误同样以 JSON 输出。
-- 退出码明确约定：0 成功，1 一般错误，2 参数错误，3 部分失败，4 需要确认。
-- `mv`、`rm` 和会覆盖已有对象的写入，在非交互环境下默认等同 `--dry-run`，必须显式加 `--yes` 才执行。
-- 连接可在 GUI 中标记为「只读」，被标记的连接在 CLI 和 MCP 中无法写入。
-- 密钥永远不出现在输出、日志和任何提示词里。
+删除、移动、覆盖在非交互环境默认只出计划。CLI 显式确认参数或客户端确认后按 plan ID 执行；MCP 执行工具只接受已生成的 plan ID。计划绑定目标、对象状态和有效期，执行前重新检查只读和冲突。重复执行返回既有状态，不能并发执行同一计划。
 
-**MCP server（`bucky mcp`，stdio 传输）**
+MCP 提供连接列举、对象查询/读取、分享、用量、上传和计划/执行工具；注解按实施时的规范核实。Skill 教 agent 先定位、预览、展示计划、等待确认再执行；安装目录和客户端支持在 Phase 5 核实。这里不预设内置模型聊天或模型 SDK。
 
-工具清单：`list_profiles`、`list_objects`、`find_objects`、`stat_object`、`read_text_object`（有大小上限）、`presign`、`usage_summary`、`upload_file`、`plan_operation`、`execute_plan`。复制、移动、删除必须两步走：`plan_operation` 返回计划和 plan id，`execute_plan` 只接受 plan id。按 MCP 规范为每个工具设置只读、破坏性等注解（核实当前规范字段名）。
+首版验收场景：
 
-**Agent Skill**
+1. agent 找到 R2 `backups/` 下 90 天前的对象，展示移动到同连接 `archive/` 的计划，确认后执行并汇报；拒绝确认不发写请求。
+2. agent 上传目录 `dist/` 到 R2，返回 7 天有效的逐对象链接或链接清单。目录本身不能当作单对象签名。
 
-生成一份 SKILL.md，教 agent 按固定流程使用 CLI：先 `find` 或 `ls` 定位，再 `--dry-run` 出计划，把计划展示给用户，确认后才执行。GUI 设置页提供一键安装，可检测本机的 Claude Code、Codex、Cursor，支持全局或项目级安装；各工具的 skills 目录路径以官方文档为准，实现时核实。
-
-**验收场景**：在 Claude Code 中说「把 backups/ 下 90 天前的文件移到 archive/」，agent 能完成定位、出计划、等待确认、执行、汇报结果的全流程；再说「把 dist 上传到 R2，给我 7 天有效的链接」，一次完成。这两段就是 README 的演示素材。
-
-## 非功能要求与工程质量
-
-这个仓库同时是求职作品，工程质量标准和功能同等重要。下面的数字是目标值，实测结果要写进 README。
+## 工程质量与发布门槛
 
 | 维度 | 要求 |
 | --- | --- |
-| 性能 | 冷启动目标 2 秒内；空闲内存目标 150 MB 以内；安装包尽量小 |
-| 安全 | 默认无遥测；密钥只存系统钥匙串；日志脱敏；预签名链接默认短有效期；删除二次确认 |
-| 可靠性 | 传输状态持久化，崩溃后可恢复；网络调用都有超时和指数退避重试；区分可重试与不可重试错误 |
-| 兼容性 | 每个厂商预设都有集成测试或手工验证记录；S3 兼容差异集中在 s3compat 驱动内处理 |
-| 代码质量 | golangci-lint 全绿；core、transfer、ops 三个包测试覆盖率目标 70% 以上；transfer 引擎有基准测试 |
-| 文档 | `docs/architecture.md` 讲清分层与数据流；重要决策都有 ADR；CLI 输出结构有文档 |
-| CI | 每个 PR 跑 lint、单元测试、MinIO 与 RustFS 集成测试、三平台构建 |
-| 界面 | 自己的设计语言；加载骨架屏、空状态、错误态齐全；动效克制。同类产品被夸最多的就是颜值，首发不能糙 |
+| 性能 | 冷启动目标 2 秒内、空闲内存目标 150 MB 内；记录安装包体积、环境和实测值，不作无依据承诺 |
+| 安全 | 默认无遥测；密钥仅钥匙串或显式的进程环境来源；日志脱敏；签名链接不落日志/缓存；只读和操作确认统一执行 |
+| 可靠性 | 流式传输、状态恢复、明确超时与有限重试；ETag 不当作通用 MD5；移动不是原子操作，部分失败可追踪 |
+| 测试 | 用例/状态/只读单元测试；MinIO 与 RustFS 契约测试；真实 R2 的权限、签名、校验、续传和预览验证 |
+| 质量 | golangci-lint、Biome、类型检查和测试通过；`core`、`service`、`transfer` 覆盖率目标 70% 以上；关键传输有基准测试 |
+| CI | 普通 PR 跑无云密钥的检查、本地协议集成与三平台构建；真实云验证显式运行，不给不可信 PR 提供凭证 |
+| 数据 | 云测试使用独立测试桶/限定 prefix，不影响生产数据；按操作计划清理，并记录清理失败 |
+| 界面 | 独立视觉语言，加载/空/错误状态完整；语言和主题均覆盖 |
 
-## 开发阶段与里程碑
+## 后续方向与发布材料
 
-目标是 6 到 8 周发布 v0.1.0，趁同类产品正在热度上抢占时间窗口。顺序是先引擎后界面：CLI 先跑通，能最早验证 core 的正确性。时间紧张时，Phase 6 先只做阿里云 OSS，其余放到 v0.2。
+版本接入顺序和阶段以开发规划为准。至少两种类型稳定后再规划跨云复制与同步；安全体检、自然语言操作、PicGo/编辑器生态、自动更新与包管理器分发后续单独排期。
 
-| 阶段 | 内容 | 交付与验收 |
-| --- | --- | --- |
-| Phase 0 工程脚手架 | 初始化仓库、go.mod、Wails 与前端脚手架、Taskfile、golangci-lint、Biome、GitHub Actions、docker compose 启动 MinIO 与 RustFS、CLAUDE.md；按 ADR-001 锁定依赖版本 | `task dev` 能跑起空壳应用；CI 全绿 |
-| Phase 1 core 与 S3 兼容驱动 | Driver 接口与能力声明、s3compat 驱动与厂商预设、profile 与钥匙串、CLI 的 ls、stat、find、presign 和 `--json` | MinIO 与 RustFS 集成测试通过；CLI 能连通真实的 R2 |
-| Phase 2 传输引擎与 ops | 队列、并发、分片、断点续传、校验、限速；Plan/Execute；CLI 的 cp、mv、rm、du | 断网和杀进程续传测试通过；dry-run 输出正确 |
-| Phase 3 GUI 浏览 | 连接管理、对象浏览器、元数据面板、传输面板、拖拽上传 | 10 万对象前缀滚动流畅 |
-| Phase 4 预览、分享、图床、用量 | 对应 v0.1 范围表中的四个模块 | 逐项满足范围表中的验收标准 |
-| Phase 5 Agent 接入 | MCP server、Skill 生成与一键安装、只读连接 | Claude Code 中跑通 AI 原生一节的两个验收场景 |
-| Phase 6 国内云原生能力 | 阿里云 OSS、腾讯云 COS、七牛的原生驱动与独有能力声明 | 每家至少完成连接、浏览、上传、CDN 刷新的手工验证记录 |
-| Phase 7 打磨与发布 | 性能实测、中英文 README、演示 GIF、安装说明、三平台安装包 | 打 tag v0.1.0，Release 页面可下载三平台安装包 |
+v1.0 保留挂载本地磁盘的方向。到对应阶段评估现有 VFS、NFS/FUSE、Windows 驱动及系统文件提供接口，单独记录依赖、许可和平台限制。首版只保留流式读写与中立接口，不提前引入文件系统组件。
 
-## v0.2 之后的路线图
+README 面向用户，英文默认并同步中文，区分“计划支持”与“已支持”，不介绍过多实现细节。发布前补实际截图、R2 演示、安装说明、已知限制和实测性能；有发布产物后再展示下载按钮和 release 徽章。
 
-这些功能 v0.1 一律不做，这里只写清方向，避免架构上把路堵死。
-
-| 版本 | 主题 | 内容 |
-| --- | --- | --- |
-| v0.2 | 跨云复制与同步 | 两个连接之间按大小、ETag、修改时间对比差异；复制与单向同步；迁移任务可暂停恢复；执行前预估流量费用 |
-| v0.3 | 安全体检 | 扫描公开可读的桶、过宽的桶策略、未加密存储；生成体检报告 |
-| v0.4 | 自然语言批量操作 | 用户说一句话，生成 Plan，预览后执行；模型可配置为 Claude、OpenAI 兼容接口或本地模型 |
-| 持续 | 图床生态 | 评估兼容 PicGo 的本地上传接口（先核实其协议），让 Typora、Obsidian 用户零成本迁移；Obsidian 插件 |
-| 持续 | 更多驱动 | Azure Blob、Google Cloud Storage（非 S3 协议）、华为云 OBS、又拍云 |
-| 持续 | 分发 | 自动更新、macOS 签名与公证、Homebrew、winget、Scoop |
-
-对架构的影响：v0.2 的跨云复制依赖驱动层的流式读写和传输引擎的远端到远端模式，Phase 1 和 Phase 2 设计接口时就要考虑进去。
-
-## v1.0：挂载为本地磁盘
-
-v1.0 的重磅功能是把存储桶挂载成本地磁盘，在访达侧边栏和资源管理器里像普通文件夹一样使用。它不进 v0.1，但 core 的设计要为它留好接口。
-
-**文件系统层**：优先评估以库的方式复用 rclone 的 VFS 层（Go 编写、MIT 协议，自带本地缓存和延迟回写），不要从零实现。评估结论写 ADR，包括依赖体积、许可证、与自有驱动层如何对接。
-
-| 平台 | 方案 | 说明 |
-| --- | --- | --- |
-| macOS（默认） | NFS 回环挂载 | 参考 rclone nfsmount：进程内起 NFS 服务，用系统自带 NFS 客户端挂载，用户无需安装任何驱动 |
-| macOS（可选） | FUSE-T 的 FSKit 后端 | 需要 macOS 26 及以上，用户需安装 FUSE-T |
-| macOS（暂不支持） | macFUSE 的 FSKit 后端 | 社区反馈目前读写仍不可用 |
-| macOS（长期） | File Provider 扩展 | iCloud 同款体验，需用 Swift 编写扩展、开发者账号签名，Go 核心通过进程间通信对接 |
-| Windows | WinFsp 挂载为盘符 | 用户需安装 WinFsp；长期评估 Cloud Files API |
-| Linux | FUSE | 标准方案 |
-
-必须做到：
-
-- 先只读，再读写。读写模式必须有本地缓存和回写队列，界面上显示尚未同步的文件。
-- 默认过滤 `.DS_Store`、`._*` 等系统文件；对挂载卷禁用 Spotlight 索引和缩略图预取。
-- 显示缓存占用（可设上限），以及本次挂载的请求次数和流量估算，避免用户收到意外账单。
-- 文档写清适用场景（素材库、归档、浏览和拖拽、在线打开大文件）和不适用场景（数据库、git 仓库、`node_modules`、频繁读写小文件）。
-
-参考资料：[rclone nfsmount 说明](https://nix-community.github.io/home-manager/options/home-manager/programs/rclone.html)、[FUSE-T 的 FSKit 后端实测](https://forum.rclone.org/t/macos-rclone-mount-with-fuse-t-via-fskit/53608)、[macFUSE 的 FSKit 后端现状](https://forum.rclone.org/t/macfuse-fskit-backend/53037)。
-
-## README 与发布素材
-
-README 是拿 star 的第一现场，Phase 7 按下面的要求制作，不能临时凑。
-
-- 首屏：一句话定位、演示 GIF（Claude Code 通过 MCP 完成「上传 dist 并生成 7 天有效链接」）、三平台下载按钮。
-- 对比表：与 Blob0、Cyberduck、S3 Browser、云厂商官方工具对比，只写可核实的事实，措辞中立。
-- 能力矩阵：支持的厂商 × 支持的功能，由驱动的能力声明自动生成，避免文档和代码不一致。
-- 中英文两版 README；安装说明包含 macOS 未签名应用的打开方法。
-- 截图：明暗两套主题，使用真实但脱敏的数据。
-- 写明实测的安装包体积、冷启动时间和内存占用。
-
-发布节奏：先在 X 上的中文独立开发者圈、V2EX、即刻首发，再投 HelloGitHub，最后上 Product Hunt 和 Hacker News。
-
-命名：定名 Bucky（原暂名 Bucket Studio），GitHub 仓库为 amigoer/bucky，CLI 命令为 `bucky`。Phase 0 时检查 Homebrew 包名和域名是否可用，有冲突就列出备选方案等我决定。
+发布准备完成后提交可审阅的安装包和说明。创建 Release、上传附件、部署网站和包注册表分发必须取得当次明确授权。文档或阶段验收通过不自动授权对外发布。
