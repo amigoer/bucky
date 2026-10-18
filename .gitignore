@@ -1,0 +1,16 @@
+/bin/
+/frontend/dist/
+/frontend/node_modules/
+/frontend/tsconfig.tsbuildinfo
+/node_modules/
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+*.lock.tmp
+*.log
+.DS_Store
+/coverage.out
+/test-results/

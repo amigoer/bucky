@@ -1,0 +1,77 @@
+version: '3'
+
+vars:
+  APP_NAME: bucky-desktop
+  BIN_DIR: bin
+  PACKAGE_MANAGER: pnpm
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 5173}}'
+  GOOS: '{{.GOOS | default OS}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+
+tasks:
+  dev:
+    desc: Run the desktop app with frontend and Go reload
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+  build:
+    desc: Build the CLI and desktop application
+    cmds:
+      - task: build:cli
+      - task: build:desktop
+  build:cli:
+    desc: Build the CLI without CGO
+    env:
+      CGO_ENABLED: '0'
+    cmds:
+      - go build -trimpath -buildvcs=false -o bin/bucky{{exeExt}} ./cmd/bucky
+  build:desktop:
+    desc: Build the native desktop application
+    cmds:
+      - task: '{{.GOOS}}:build'
+  build:frontend:
+    desc: Generate bindings and build the frontend
+    cmds:
+      - task: common:build:frontend
+  generate:bindings:
+    desc: Generate TypeScript bindings from the desktop entry
+    cmds:
+      - task: common:generate:bindings
+  run:
+    cmds:
+      - task: '{{.GOOS}}:run'
+  package:
+    desc: Package the desktop app locally
+    cmds:
+      - task: '{{.GOOS}}:package'
+  lint:
+    desc: Check Go, frontend formatting and TypeScript
+    cmds:
+      - golangci-lint run ./cmd/... ./internal/... ./frontend
+      - pnpm --dir frontend lint
+      - pnpm --dir frontend typecheck
+  format:
+    desc: Format Go and frontend source
+    cmds:
+      - go fmt ./cmd/... ./internal/... ./frontend
+      - pnpm --dir frontend format
+  test:
+    desc: Run unit tests without cloud credentials
+    cmds:
+      - go test -race ./internal/... ./cmd/...
+      - pnpm --dir frontend test
+  test:integration:
+    desc: Run MinIO and RustFS protocol contracts in disposable containers
+    cmds:
+      - go test -tags integration -count=1 -timeout 10m ./test/integration
+  check:
+    desc: Run lint, unit tests and local builds
+    cmds:
+      - task: generate:bindings
+      - task: lint
+      - task: test
+      - task: build
