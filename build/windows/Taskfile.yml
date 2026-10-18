@@ -1,0 +1,27 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    deps:
+      - task: common:build:frontend
+    cmds:
+      - task: generate:syso
+      - go build {{if ne .DEV "true"}}-tags production -trimpath -ldflags="-s -w -H windowsgui"{{end}} -buildvcs=false -o bin/bucky-desktop.exe ./cmd/bucky-desktop
+    env:
+      CGO_ENABLED: '0'
+      GOOS: windows
+      GOARCH: '{{.ARCH | default ARCH}}'
+  generate:syso:
+    cmds:
+      - wails3 generate syso -arch {{.ARCH | default ARCH}} -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out cmd/bucky-desktop/wails_windows_{{.ARCH | default ARCH}}.syso
+  package:
+    deps:
+      - task: build
+    cmds:
+      - wails3 tool msix --config build/config.yml --name bucky-desktop.exe --executable bin/bucky-desktop.exe --arch {{.ARCH | default ARCH}} --out bin/Bucky.msix
+  run:
+    cmds:
+      - bin/bucky-desktop.exe

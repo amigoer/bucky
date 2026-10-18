@@ -1,0 +1,36 @@
+version: '3'
+
+tasks:
+  install:frontend:deps:
+    run: once
+    dir: frontend
+    sources: [package.json, pnpm-lock.yaml]
+    generates: [node_modules/.modules.yaml]
+    cmds:
+      - pnpm install --frozen-lockfile
+  prepare:assets:
+    run: once
+    cmds:
+      - mkdir -p frontend/dist
+      - cmd: cp frontend/index.html frontend/dist/index.html
+        status:
+          - test -f frontend/dist/index.html
+  generate:bindings:
+    run: once
+    deps:
+      - task: prepare:assets
+    cmds:
+      - wails3 generate bindings -ts -clean=true -d frontend/bindings ./cmd/bucky-desktop
+  build:frontend:
+    run: once
+    deps:
+      - task: install:frontend:deps
+      - task: generate:bindings
+    cmds:
+      - pnpm --dir frontend build
+  dev:frontend:
+    deps:
+      - task: install:frontend:deps
+    dir: frontend
+    cmds:
+      - pnpm dev --port {{.VITE_PORT}} --strictPort

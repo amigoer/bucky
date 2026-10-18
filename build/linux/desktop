@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Bucky
+Comment=Cloudflare R2 object storage client
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/bucky-desktop %u
+Terminal=false
+Type=Application
+Icon=bucky-desktop
+Categories=Utility;
+StartupWMClass=bucky-desktop
+
+ 

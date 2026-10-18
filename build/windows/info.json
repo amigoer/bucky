@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "0.1.0"
+	},
+	"info": {
+		"0409": {
+			"ProductVersion": "0.1.0",
+			"CompanyName": "Amigoer",
+			"FileDescription": "Cloudflare R2 object storage client",
+			"LegalCopyright": "Copyright 2026 Amigoer",
+			"ProductName": "Bucky",
+			"Comments": "This is a comment"
+		}
+	}
+}

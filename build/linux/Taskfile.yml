@@ -1,0 +1,23 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    deps:
+      - task: common:build:frontend
+    env:
+      CGO_ENABLED: '1'
+      GOOS: linux
+      GOARCH: '{{.ARCH | default ARCH}}'
+    cmds:
+      - go build {{if ne .DEV "true"}}-tags production -trimpath{{end}} -buildvcs=false -o bin/bucky-desktop ./cmd/bucky-desktop
+  package:
+    deps:
+      - task: build
+    cmds:
+      - wails3 generate appimage -binary bin/bucky-desktop -icon build/appicon.png -desktopfile build/linux/desktop -outputdir bin
+  run:
+    cmds:
+      - bin/bucky-desktop
