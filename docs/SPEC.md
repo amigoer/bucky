@@ -25,8 +25,8 @@
 
 1. 分阶段推进。每个阶段开始前输出任务清单和验收标准，等我确认后再写代码。
 2. 不确定第三方库的 API 时，先读官方文档或模块源码，禁止凭记忆编造接口。所有依赖锁定具体版本。
-3. 优先使用纯 Go 依赖，避免 cgo（挂载阶段除外）。
-4. 核心包写单元测试，存储相关功能写基于 MinIO 的集成测试。仓库里不得出现任何真实密钥。
+3. 优先使用纯 Go 依赖，避免 cgo（Wails 桌面外壳和挂载阶段除外）。CLI 必须能以 `CGO_ENABLED=0` 构建。
+4. 核心包写单元测试，存储相关功能写基于 MinIO 与 RustFS 的集成测试。仓库里不得出现任何真实密钥。
 5. 小步提交，使用 Conventional Commits，一个提交只做一件事。
 6. 重要技术决策写成 ADR，放在 `docs/adr/`，包含背景、决策、备选方案和后果。
 7. 删除、覆盖、移动等破坏性操作，在代码层面必须先生成执行计划，经确认后再执行。
@@ -59,22 +59,23 @@ Bucky 是一款开源、免费、全平台、AI 原生的对象存储桌面客�
 
 ## 技术栈
 
-后端全部用 Go，桌面外壳用 Wails，前端默认 Vue 3。下表中标注「核实」的项，在 Phase 0 查清当前状态后写入 ADR-001。
+后端全部用 Go，桌面外壳用 Wails v3，前端用 React。具体版本、核实结果和取舍理由见 [ADR-001](adr/0001-tech-stack.md)。
 
 | 层 | 选型 | 说明 |
 | --- | --- | --- |
-| 语言 | Go 最新稳定版 | 在 go.mod 中写明版本 |
-| 桌面框架 | Wails | 核实 v2 与 v3 当前状态，优先选生产可用的稳定版 |
-| 前端 | Vue 3 + TypeScript + Vite + Tailwind CSS + shadcn-vue | 若改用 React + shadcn/ui，全项目统一即可；十万级对象列表必须用虚拟滚动 |
-| S3 兼容层 | aws-sdk-go-v2（s3 与分片上传 manager） | 所有厂商的基础读写都走这一层 |
-| 国内云原生能力 | 阿里云 OSS Go SDK、腾讯云 cos-go-sdk-v5、七牛 go-sdk | 只用于 CDN 刷新、图片处理等独有功能；核实各 SDK 最新版本 |
-| 凭证 | 系统钥匙串（如 zalando/go-keyring） | 本地只存非敏感的连接元数据 |
+| 语言 | Go 1.27 | 单一 module `github.com/amigoer/bucky` |
+| 桌面框架 | Wails v3（锁定 v3.0.0-beta.31） | v3 仍是 beta，必须锁定精确版本；只有 `cmd/bucky-desktop` 和 `internal/app` 可以依赖 Wails |
+| 前端 | React 19 + TypeScript 7 + Vite 8 + Tailwind CSS 4 + shadcn/ui | 十万级对象列表用 TanStack Virtual 虚拟滚动；远端数据用 TanStack Query，界面状态用 Zustand；中英双语用 i18next |
+| 前端工程 | pnpm、Node 24 LTS、Biome、Vitest | typescript-eslint 不支持 TS 7，lint 和格式化统一用 Biome |
+| S3 兼容层 | aws-sdk-go-v2 service/s3 | 所有厂商的基础读写都走这一层；分片上传直接调用 Multipart API 并自管状态，不用已弃用的 s3/manager |
+| 国内云原生能力 | 阿里云 alibabacloud-oss-go-sdk-v2、腾讯云 cos-go-sdk-v5、七牛 go-sdk/v7 | 只用于 CDN 刷新、图片处理等独有功能；阿里云和腾讯云的 CDN 刷新要另外引入各自的 CDN SDK，Phase 6 核实 |
+| 凭证 | 系统钥匙串，zalando/go-keyring | 本地只存非敏感的连接元数据 |
 | 本地数据 | SQLite，纯 Go 驱动 modernc.org/sqlite | 存连接配置、传输历史、统计缓存 |
-| CLI | cobra | 与桌面端共用 core |
-| MCP | 官方 Go SDK github.com/modelcontextprotocol/go-sdk | 核实最新版本与 API |
+| CLI | cobra | 与桌面端共用 core；必须能以 `CGO_ENABLED=0` 构建 |
+| MCP | 官方 Go SDK github.com/modelcontextprotocol/go-sdk | 工具注解的字段名在 Phase 5 按当时的规范核实 |
 | 日志 | log/slog | 日志中禁止出现密钥 |
-| 测试 | testing + testify，testcontainers-go 或 docker compose 启动 MinIO | 集成测试进 CI |
-| 构建发布 | GitHub Actions 三平台矩阵构建 | macOS 签名与公证放到 v0.2 之后 |
+| 测试 | testing + testify，testcontainers-go 启动 MinIO 与 RustFS | 同一套集成测试对两个后端各跑一遍并进 CI；MinIO 社区版已停止维护，镜像来源见 ADR-001 |
+| 构建发布 | Taskfile（go-task，Wails v3 自带）+ GitHub Actions 三平台矩阵构建 | 不另建 Makefile；macOS 签名与公证放到 v0.2 之后 |
 
 ## 架构与目录结构
 
@@ -100,10 +101,11 @@ bucky/
 │   ├── agent/             # MCP server、Skill 生成与安装
 │   ├── store/             # SQLite 持久化
 │   └── app/               # 暴露给 Wails 前端的服务层，只做参数转换
-├── frontend/              # Vue 3 前端
+├── frontend/              # React 前端
+├── build/                 # Wails v3 构建资源与各平台 Taskfile
 ├── docs/                  # SPEC.md、architecture.md、adr/
-├── test/integration/      # 基于 MinIO 的集成测试
-└── Makefile
+├── test/integration/      # 基于 MinIO 与 RustFS 的集成测试
+└── Taskfile.yml
 ```
 
 三条硬性约定：
@@ -221,7 +223,7 @@ Agent 能力是首发卖点，三件套共用 core，复用桌面端已配置的
 | 兼容性 | 每个厂商预设都有集成测试或手工验证记录；S3 兼容差异集中在 s3compat 驱动内处理 |
 | 代码质量 | golangci-lint 全绿；core、transfer、ops 三个包测试覆盖率目标 70% 以上；transfer 引擎有基准测试 |
 | 文档 | `docs/architecture.md` 讲清分层与数据流；重要决策都有 ADR；CLI 输出结构有文档 |
-| CI | 每个 PR 跑 lint、单元测试、MinIO 集成测试、三平台构建 |
+| CI | 每个 PR 跑 lint、单元测试、MinIO 与 RustFS 集成测试、三平台构建 |
 | 界面 | 自己的设计语言；加载骨架屏、空状态、错误态齐全；动效克制。同类产品被夸最多的就是颜值，首发不能糙 |
 
 ## 开发阶段与里程碑
@@ -230,8 +232,8 @@ Agent 能力是首发卖点，三件套共用 core，复用桌面端已配置的
 
 | 阶段 | 内容 | 交付与验收 |
 | --- | --- | --- |
-| Phase 0 工程脚手架 | 初始化仓库、go.mod、Wails 与前端脚手架、Makefile、golangci-lint、GitHub Actions、docker compose 启动 MinIO、CLAUDE.md、ADR-001 技术栈 | `make dev` 能跑起空壳应用；CI 全绿 |
-| Phase 1 core 与 S3 兼容驱动 | Driver 接口与能力声明、s3compat 驱动与厂商预设、profile 与钥匙串、CLI 的 ls、stat、find、presign 和 `--json` | MinIO 集成测试通过；CLI 能连通真实的 R2 |
+| Phase 0 工程脚手架 | 初始化仓库、go.mod、Wails 与前端脚手架、Taskfile、golangci-lint、Biome、GitHub Actions、docker compose 启动 MinIO 与 RustFS、CLAUDE.md；按 ADR-001 锁定依赖版本 | `task dev` 能跑起空壳应用；CI 全绿 |
+| Phase 1 core 与 S3 兼容驱动 | Driver 接口与能力声明、s3compat 驱动与厂商预设、profile 与钥匙串、CLI 的 ls、stat、find、presign 和 `--json` | MinIO 与 RustFS 集成测试通过；CLI 能连通真实的 R2 |
 | Phase 2 传输引擎与 ops | 队列、并发、分片、断点续传、校验、限速；Plan/Execute；CLI 的 cp、mv、rm、du | 断网和杀进程续传测试通过；dry-run 输出正确 |
 | Phase 3 GUI 浏览 | 连接管理、对象浏览器、元数据面板、传输面板、拖拽上传 | 10 万对象前缀滚动流畅 |
 | Phase 4 预览、分享、图床、用量 | 对应 v0.1 范围表中的四个模块 | 逐项满足范围表中的验收标准 |
