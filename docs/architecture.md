@@ -63,6 +63,7 @@ bucky/
 │   ├── transfer/         # Queue, streaming and resumable transfers
 │   ├── store/            # SQLite schema, migrations and repositories
 │   ├── app/              # Wails bindings and event conversion
+│   ├── macwindow/        # Native macOS window chrome helpers
 │   └── agent/            # MCP transport and Skill installation
 ├── frontend/
 │   └── src/

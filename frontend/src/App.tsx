@@ -43,8 +43,8 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConnectionModal } from "./components/ConnectionModal";
+import { TitleBar } from "./components/TitleBar";
 import {
-  Brand,
   Button,
   ConfirmDialog,
   ErrorBanner,
@@ -427,465 +427,467 @@ export default function App() {
   const crumbs = breadcrumbs(prefix);
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <Brand />
-        <div className="sidebar-section">
-          <div className="sidebar-heading">
-            <span>{t("connections")}</span>
-            <IconButton
-              label={t("addConnection")}
-              onClick={() => setConnection({})}
-              disabled={!desktop}
-            >
-              <Plus size={16} />
-            </IconButton>
-          </div>
-          {!desktop ? <p className="sidebar-note">{t("desktopHint")}</p> : null}
-          {profiles.isPending && desktop ? <Spinner /> : null}
-          {profiles.error ? (
-            <ErrorBanner
-              message={errorMessage(profiles.error)}
-              onRetry={() => void profiles.refetch()}
-            />
-          ) : null}
-          <div className="connections">
-            {profiles.data?.map((item) => (
-              <div
-                key={item.id}
-                className={`connection-row ${item.id === profileId ? "active" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="connection-main"
-                  onClick={() => setProfileId(item.id)}
-                >
-                  <span className="connection-icon">
-                    <Cloud size={17} />
-                  </span>
-                  <span className="connection-copy">
-                    <strong>{item.name}</strong>
-                    <small>{item.bucket || t("allBuckets")}</small>
-                  </span>
-                  {item.readOnly ? <LockKeyhole size={13} /> : null}
-                </button>
-                <IconButton
-                  label={t("manageConnection")}
-                  onClick={() => setConnection({ profile: item })}
-                >
-                  <MoreHorizontal size={16} />
-                </IconButton>
-              </div>
-            ))}
-          </div>
-          {desktop && profiles.data?.length === 0 ? (
-            <button type="button" className="sidebar-cta" onClick={() => setConnection({})}>
-              <Plus size={16} />
-              {t("addConnection")}
-            </button>
-          ) : null}
-        </div>
-        {profile ? (
-          <div className="sidebar-section buckets-section">
+    <div className="app-frame">
+      <TitleBar />
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="sidebar-section">
             <div className="sidebar-heading">
-              <span>{t("buckets")}</span>
-              <IconButton label={t("refreshHint")} onClick={refresh}>
-                <RefreshCw size={14} />
+              <span>{t("connections")}</span>
+              <IconButton
+                label={t("addConnection")}
+                onClick={() => setConnection({})}
+                disabled={!desktop}
+              >
+                <Plus size={16} />
               </IconButton>
             </div>
-            {buckets.isPending ? <Spinner /> : null}
-            {buckets.error ? <ErrorBanner message={errorMessage(buckets.error)} /> : null}
-            {buckets.data?.length === 0 ? <p className="sidebar-note">{t("noBuckets")}</p> : null}
-            {buckets.data?.map((item: Bucket) => (
-              <button
-                key={item.name}
-                type="button"
-                className={`bucket-row ${bucket === item.name ? "active" : ""}`}
-                onClick={() => setBucket(item.name)}
-              >
-                <HardDrive size={16} />
-                <span>{item.name}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <div className="sidebar-footer">
-          <button type="button" className="footer-link" onClick={() => setTransfersOpen(true)}>
-            <ArrowUpDown size={16} />
-            <span>{t("transfers")}</span>
-            {tasks.data?.some((task) => task.status === "running" || task.status === "queued") ? (
-              <span className="pulse-dot" />
-            ) : null}
-          </button>
-          <button type="button" className="footer-link" onClick={() => setSettings(true)}>
-            <Settings size={16} />
-            <span>{t("settings")}</span>
-          </button>
-        </div>
-      </aside>
-
-      <main className="workspace">
-        {!desktop ? (
-          <div className="browser-banner">
-            <LockKeyhole size={16} />
-            {t("desktopHint")}
-          </div>
-        ) : null}
-        <header className="topbar">
-          <div className="topbar-title">
-            <p className="eyebrow">{profile?.name ?? t("workspace")}</p>
-            <h1>{bucket || t("objects")}</h1>
-          </div>
-          <div className="topbar-actions">
-            <div className="searchbox">
-              <Search size={16} />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") runSearch();
-                  if (event.key === "Escape") {
-                    setSearch("");
-                    setFindRequest(null);
-                  }
-                }}
-                placeholder={t("search")}
-                aria-label={t("searchLabel")}
-                disabled={!bucket}
-              />
-              {search ? (
-                <IconButton
-                  label={t("clearSearch")}
-                  onClick={() => {
-                    setSearch("");
-                    setFindRequest(null);
-                  }}
-                >
-                  <X size={14} />
-                </IconButton>
-              ) : null}
-            </div>
-            <IconButton label={t("refresh")} onClick={refresh} disabled={!bucket}>
-              <RefreshCw size={17} />
-            </IconButton>
-            <Button
-              variant="secondary"
-              onClick={() => void onUpload(false)}
-              disabled={!canWrite || !bucket}
-            >
-              <Upload size={16} />
-              {t("upload")}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void onUpload(true)}
-              disabled={!canWrite || !bucket}
-            >
-              <FolderUp size={16} />
-              {t("uploadFolder")}
-            </Button>
-          </div>
-        </header>
-
-        <div className="contextbar">
-          <nav className="breadcrumbs" aria-label={t("currentFolder")}>
-            <button type="button" onClick={() => navigate("")}>
-              {bucket || t("objects")}
-            </button>
-            {crumbs.map((crumb) => (
-              <span key={crumb.prefix} className="crumb">
-                <ChevronRight size={13} />
-                <button type="button" onClick={() => navigate(crumb.prefix)}>
-                  {crumb.name}
-                </button>
-              </span>
-            ))}
-          </nav>
-          <div className="view-actions">
-            <span className="muted small">
-              {t("loadedCount", { count: objects.length + folders.length })}
-            </span>
-            <IconButton
-              label={t("listView")}
-              onClick={() => ui.setView("list")}
-              aria-pressed={ui.view === "list"}
-            >
-              <List size={17} />
-            </IconButton>
-            <IconButton
-              label={t("gridView")}
-              onClick={() => ui.setView("grid")}
-              aria-pressed={ui.view === "grid"}
-            >
-              <Grid3X3 size={17} />
-            </IconButton>
-          </div>
-        </div>
-
-        {pendingCount > 0 && !plan ? (
-          <div className="plan-toast">
-            <AlertTriangle size={16} />
-            <span>{t("pendingPlans", { count: pendingCount })}</span>
-          </div>
-        ) : null}
-
-        <section
-          className="content"
-          data-file-drop-target=""
-          aria-busy={list.isPending || found.isPending}
-        >
-          {!profile ? (
-            <Welcome desktop={desktop} onAdd={() => setConnection({})} />
-          ) : !bucket ? (
-            <div className="empty-folder">
-              <span className="empty-icon">
-                <HardDrive size={28} />
-              </span>
-              <h2>{t("selectBucket")}</h2>
-              <p>{buckets.data?.length === 0 ? t("noBuckets") : t("selectBucketHint")}</p>
-              {buckets.data?.length === 0 ? (
-                <Button variant="secondary" onClick={refresh}>
-                  <RefreshCw size={16} />
-                  {t("refresh")}
-                </Button>
-              ) : null}
-            </div>
-          ) : list.error || found.error ? (
-            <div className="state-card">
+            {!desktop ? <p className="sidebar-note">{t("desktopHint")}</p> : null}
+            {profiles.isPending && desktop ? <Spinner /> : null}
+            {profiles.error ? (
               <ErrorBanner
-                message={errorMessage(list.error ?? found.error)}
-                onRetry={() => {
-                  if (findRequest) void found.refetch();
-                  else void list.refetch();
-                }}
+                message={errorMessage(profiles.error)}
+                onRetry={() => void profiles.refetch()}
               />
-            </div>
-          ) : list.isPending || found.isPending ? (
-            <div className="state-card">
-              <Spinner label={t("loading")} />
-            </div>
-          ) : objects.length === 0 && folders.length === 0 ? (
-            <EmptyFolder
-              search={Boolean(findRequest)}
-              readOnly={!canWrite}
-              onUpload={() => void onUpload(false)}
-              drop={desktop}
-            />
-          ) : (
-            <ObjectTable
-              view={ui.view}
-              folders={folders}
-              objects={objects}
-              selected={selection}
-              onToggle={(object, checked) =>
-                setSelection((current) => {
-                  const next = new Set(current);
-                  if (checked) next.add(object.key);
-                  else next.delete(object.key);
-                  return next;
-                })
-              }
-              onToggleAll={(checked) =>
-                setSelection(checked ? new Set(objects.map((object) => object.key)) : new Set())
-              }
-              onOpenFolder={navigate}
-              onOpenPreview={setPreview}
-              onSort={(value) => {
-                if (sort === value) setAscending(!ascending);
-                else {
-                  setSort(value);
-                  setAscending(true);
-                }
-              }}
-              sort={sort}
-              ascending={ascending}
-              locale={locale}
-              loading={list.isFetchingNextPage}
-            />
-          )}
-          {findRequest ? (
-            <div className="search-footer">
-              <span>{t("searchScanned", { count: searchScanned })}</span>
-              {searchComplete ? (
-                <span className="tag">{t("endOfFolder")}</span>
-              ) : (
-                <Button
-                  variant="secondary"
-                  onClick={() => void found.fetchNextPage()}
-                  disabled={found.isFetchingNextPage}
+            ) : null}
+            <div className="connections">
+              {profiles.data?.map((item) => (
+                <div
+                  key={item.id}
+                  className={`connection-row ${item.id === profileId ? "active" : ""}`}
                 >
-                  {found.isFetchingNextPage ? <LoaderCircle className="spin" size={15} /> : null}
-                  {t("loadMore")}
-                </Button>
-              )}
+                  <button
+                    type="button"
+                    className="connection-main"
+                    onClick={() => setProfileId(item.id)}
+                  >
+                    <span className="connection-icon">
+                      <Cloud size={17} />
+                    </span>
+                    <span className="connection-copy">
+                      <strong>{item.name}</strong>
+                      <small>{item.bucket || t("allBuckets")}</small>
+                    </span>
+                    {item.readOnly ? <LockKeyhole size={13} /> : null}
+                  </button>
+                  <IconButton
+                    label={t("manageConnection")}
+                    onClick={() => setConnection({ profile: item })}
+                  >
+                    <MoreHorizontal size={16} />
+                  </IconButton>
+                </div>
+              ))}
             </div>
-          ) : list.hasNextPage ? (
-            <div className="search-footer">
-              <Button
-                variant="secondary"
-                onClick={() => void list.fetchNextPage()}
-                disabled={list.isFetchingNextPage}
-              >
-                {list.isFetchingNextPage ? <LoaderCircle className="spin" size={15} /> : null}
-                {t("loadMore")}
-              </Button>
+            {desktop && profiles.data?.length === 0 ? (
+              <button type="button" className="sidebar-cta" onClick={() => setConnection({})}>
+                <Plus size={16} />
+                {t("addConnection")}
+              </button>
+            ) : null}
+          </div>
+          {profile ? (
+            <div className="sidebar-section buckets-section">
+              <div className="sidebar-heading">
+                <span>{t("buckets")}</span>
+                <IconButton label={t("refreshHint")} onClick={refresh}>
+                  <RefreshCw size={14} />
+                </IconButton>
+              </div>
+              {buckets.isPending ? <Spinner /> : null}
+              {buckets.error ? <ErrorBanner message={errorMessage(buckets.error)} /> : null}
+              {buckets.data?.length === 0 ? <p className="sidebar-note">{t("noBuckets")}</p> : null}
+              {buckets.data?.map((item: Bucket) => (
+                <button
+                  key={item.name}
+                  type="button"
+                  className={`bucket-row ${bucket === item.name ? "active" : ""}`}
+                  onClick={() => setBucket(item.name)}
+                >
+                  <HardDrive size={16} />
+                  <span>{item.name}</span>
+                </button>
+              ))}
             </div>
           ) : null}
-        </section>
+          <div className="sidebar-footer">
+            <button type="button" className="footer-link" onClick={() => setTransfersOpen(true)}>
+              <ArrowUpDown size={16} />
+              <span>{t("transfers")}</span>
+              {tasks.data?.some((task) => task.status === "running" || task.status === "queued") ? (
+                <span className="pulse-dot" />
+              ) : null}
+            </button>
+            <button type="button" className="footer-link" onClick={() => setSettings(true)}>
+              <Settings size={16} />
+              <span>{t("settings")}</span>
+            </button>
+          </div>
+        </aside>
 
-        {selected.length > 0 ? (
-          <div className="selection-bar" role="toolbar">
-            <span className="selection-count">{t("selected", { count: selected.length })}</span>
-            <Button variant="ghost" onClick={() => setSelection(new Set())}>
-              {t("clearSelection")}
-            </Button>
-            <div className="spacer" />
-            {selected.length === 1 ? (
-              <Button variant="secondary" onClick={() => void onDownload(selected[0])}>
-                <Download size={15} />
-                {t("download")}
-              </Button>
-            ) : null}
-            {selected.length === 1 ? (
+        <main className="workspace">
+          {!desktop ? (
+            <div className="browser-banner">
+              <LockKeyhole size={16} />
+              {t("desktopHint")}
+            </div>
+          ) : null}
+          <header className="topbar">
+            <div className="topbar-title">
+              <p className="eyebrow">{profile?.name ?? t("workspace")}</p>
+              <h1>{bucket || t("objects")}</h1>
+            </div>
+            <div className="topbar-actions">
+              <div className="searchbox">
+                <Search size={16} />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") runSearch();
+                    if (event.key === "Escape") {
+                      setSearch("");
+                      setFindRequest(null);
+                    }
+                  }}
+                  placeholder={t("search")}
+                  aria-label={t("searchLabel")}
+                  disabled={!bucket}
+                />
+                {search ? (
+                  <IconButton
+                    label={t("clearSearch")}
+                    onClick={() => {
+                      setSearch("");
+                      setFindRequest(null);
+                    }}
+                  >
+                    <X size={14} />
+                  </IconButton>
+                ) : null}
+              </div>
+              <IconButton label={t("refresh")} onClick={refresh} disabled={!bucket}>
+                <RefreshCw size={17} />
+              </IconButton>
               <Button
                 variant="secondary"
-                onClick={() => {
-                  setSharing(selected[0]);
-                  setShareLink(null);
-                }}
+                onClick={() => void onUpload(false)}
+                disabled={!canWrite || !bucket}
               >
-                <Share2 size={15} />
-                {t("share")}
+                <Upload size={16} />
+                {t("upload")}
               </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void onUpload(true)}
+                disabled={!canWrite || !bucket}
+              >
+                <FolderUp size={16} />
+                {t("uploadFolder")}
+              </Button>
+            </div>
+          </header>
+
+          <div className="contextbar">
+            <nav className="breadcrumbs" aria-label={t("currentFolder")}>
+              <button type="button" onClick={() => navigate("")}>
+                {bucket || t("objects")}
+              </button>
+              {crumbs.map((crumb) => (
+                <span key={crumb.prefix} className="crumb">
+                  <ChevronRight size={13} />
+                  <button type="button" onClick={() => navigate(crumb.prefix)}>
+                    {crumb.name}
+                  </button>
+                </span>
+              ))}
+            </nav>
+            <div className="view-actions">
+              <span className="muted small">
+                {t("loadedCount", { count: objects.length + folders.length })}
+              </span>
+              <IconButton
+                label={t("listView")}
+                onClick={() => ui.setView("list")}
+                aria-pressed={ui.view === "list"}
+              >
+                <List size={17} />
+              </IconButton>
+              <IconButton
+                label={t("gridView")}
+                onClick={() => ui.setView("grid")}
+                aria-pressed={ui.view === "grid"}
+              >
+                <Grid3X3 size={17} />
+              </IconButton>
+            </div>
+          </div>
+
+          {pendingCount > 0 && !plan ? (
+            <div className="plan-toast">
+              <AlertTriangle size={16} />
+              <span>{t("pendingPlans", { count: pendingCount })}</span>
+            </div>
+          ) : null}
+
+          <section
+            className="content"
+            data-file-drop-target=""
+            aria-busy={list.isPending || found.isPending}
+          >
+            {!profile ? (
+              <Welcome desktop={desktop} onAdd={() => setConnection({})} />
+            ) : !bucket ? (
+              <div className="empty-folder">
+                <span className="empty-icon">
+                  <HardDrive size={28} />
+                </span>
+                <h2>{t("selectBucket")}</h2>
+                <p>{buckets.data?.length === 0 ? t("noBuckets") : t("selectBucketHint")}</p>
+                {buckets.data?.length === 0 ? (
+                  <Button variant="secondary" onClick={refresh}>
+                    <RefreshCw size={16} />
+                    {t("refresh")}
+                  </Button>
+                ) : null}
+              </div>
+            ) : list.error || found.error ? (
+              <div className="state-card">
+                <ErrorBanner
+                  message={errorMessage(list.error ?? found.error)}
+                  onRetry={() => {
+                    if (findRequest) void found.refetch();
+                    else void list.refetch();
+                  }}
+                />
+              </div>
+            ) : list.isPending || found.isPending ? (
+              <div className="state-card">
+                <Spinner label={t("loading")} />
+              </div>
+            ) : objects.length === 0 && folders.length === 0 ? (
+              <EmptyFolder
+                search={Boolean(findRequest)}
+                readOnly={!canWrite}
+                onUpload={() => void onUpload(false)}
+                drop={desktop}
+              />
+            ) : (
+              <ObjectTable
+                view={ui.view}
+                folders={folders}
+                objects={objects}
+                selected={selection}
+                onToggle={(object, checked) =>
+                  setSelection((current) => {
+                    const next = new Set(current);
+                    if (checked) next.add(object.key);
+                    else next.delete(object.key);
+                    return next;
+                  })
+                }
+                onToggleAll={(checked) =>
+                  setSelection(checked ? new Set(objects.map((object) => object.key)) : new Set())
+                }
+                onOpenFolder={navigate}
+                onOpenPreview={setPreview}
+                onSort={(value) => {
+                  if (sort === value) setAscending(!ascending);
+                  else {
+                    setSort(value);
+                    setAscending(true);
+                  }
+                }}
+                sort={sort}
+                ascending={ascending}
+                locale={locale}
+                loading={list.isFetchingNextPage}
+              />
+            )}
+            {findRequest ? (
+              <div className="search-footer">
+                <span>{t("searchScanned", { count: searchScanned })}</span>
+                {searchComplete ? (
+                  <span className="tag">{t("endOfFolder")}</span>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    onClick={() => void found.fetchNextPage()}
+                    disabled={found.isFetchingNextPage}
+                  >
+                    {found.isFetchingNextPage ? <LoaderCircle className="spin" size={15} /> : null}
+                    {t("loadMore")}
+                  </Button>
+                )}
+              </div>
+            ) : list.hasNextPage ? (
+              <div className="search-footer">
+                <Button
+                  variant="secondary"
+                  onClick={() => void list.fetchNextPage()}
+                  disabled={list.isFetchingNextPage}
+                >
+                  {list.isFetchingNextPage ? <LoaderCircle className="spin" size={15} /> : null}
+                  {t("loadMore")}
+                </Button>
+              </div>
             ) : null}
-            <Button
-              variant="secondary"
-              disabled={!canWrite || selection.size > 1000}
-              onClick={() => createPlan.mutate({ operation: "copy", sources: selected })}
-            >
-              <Copy size={15} />
-              {t("copy")}
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={!canWrite || selection.size > 1000}
-              onClick={() => setMode({ kind: "move", objects: selected })}
-            >
-              <FolderDown size={15} />
-              {t("move")}
-            </Button>
-            <Button
-              variant="danger"
-              disabled={!canWrite || selection.size > 1000}
-              onClick={() => createPlan.mutate({ operation: "delete", sources: selected })}
-            >
-              <Trash2 size={15} />
-              {t("delete")}
-            </Button>
-            {selection.size > 1000 ? (
-              <span className="muted small">{t("selectionLimit")}</span>
-            ) : null}
+          </section>
+
+          {selected.length > 0 ? (
+            <div className="selection-bar" role="toolbar">
+              <span className="selection-count">{t("selected", { count: selected.length })}</span>
+              <Button variant="ghost" onClick={() => setSelection(new Set())}>
+                {t("clearSelection")}
+              </Button>
+              <div className="spacer" />
+              {selected.length === 1 ? (
+                <Button variant="secondary" onClick={() => void onDownload(selected[0])}>
+                  <Download size={15} />
+                  {t("download")}
+                </Button>
+              ) : null}
+              {selected.length === 1 ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSharing(selected[0]);
+                    setShareLink(null);
+                  }}
+                >
+                  <Share2 size={15} />
+                  {t("share")}
+                </Button>
+              ) : null}
+              <Button
+                variant="secondary"
+                disabled={!canWrite || selection.size > 1000}
+                onClick={() => createPlan.mutate({ operation: "copy", sources: selected })}
+              >
+                <Copy size={15} />
+                {t("copy")}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={!canWrite || selection.size > 1000}
+                onClick={() => setMode({ kind: "move", objects: selected })}
+              >
+                <FolderDown size={15} />
+                {t("move")}
+              </Button>
+              <Button
+                variant="danger"
+                disabled={!canWrite || selection.size > 1000}
+                onClick={() => createPlan.mutate({ operation: "delete", sources: selected })}
+              >
+                <Trash2 size={15} />
+                {t("delete")}
+              </Button>
+              {selection.size > 1000 ? (
+                <span className="muted small">{t("selectionLimit")}</span>
+              ) : null}
+            </div>
+          ) : null}
+        </main>
+
+        {transfersOpen ? (
+          <TransferPanel
+            tasks={tasks.data ?? []}
+            onClose={() => setTransfersOpen(false)}
+            onChanged={() => void queryClient.invalidateQueries({ queryKey: ["transfers"] })}
+            notify={notify}
+          />
+        ) : null}
+
+        {connection ? (
+          <ConnectionModal
+            profile={connection.profile}
+            onRemove={(target) => {
+              setConnection(null);
+              setRemoving(target);
+            }}
+            onClose={() => setConnection(null)}
+            onSaved={(saved) => {
+              setConnection(null);
+              setProfileId(saved.id);
+              void queryClient.invalidateQueries({ queryKey: ["profiles"] });
+              notify(t("connectionSaved"));
+            }}
+          />
+        ) : null}
+
+        {removing ? (
+          <ConfirmDialog
+            title={t("removeConnection")}
+            message={t("removeHint", { name: removing.name })}
+            confirmLabel={t("remove")}
+            danger
+            onClose={() => setRemoving(null)}
+            onConfirm={removeProfile}
+          />
+        ) : null}
+
+        {sharing ? (
+          <ShareModal
+            object={sharing}
+            profile={profile}
+            link={shareLink}
+            setLink={setShareLink}
+            notify={notify}
+            onClose={() => {
+              setSharing(null);
+              setShareLink(null);
+            }}
+          />
+        ) : null}
+
+        {preview ? (
+          <PreviewModal
+            object={preview}
+            onClose={() => setPreview(null)}
+            onDownload={() => void onDownload(preview)}
+          />
+        ) : null}
+
+        {plan ? (
+          <PlanModal
+            plan={plan}
+            onClose={closePlan}
+            onExecute={() => void runExecute(execute)}
+            busy={executeState.busy}
+            error={executeState.error}
+            pending={pendingCount}
+          />
+        ) : null}
+
+        {mode ? (
+          <DestinationModal
+            mode={mode}
+            current={{ profileId, bucket, key: prefix }}
+            onClose={() => setMode(null)}
+            onCreate={(target) => {
+              setMode(null);
+              createPlan.mutate({ operation: mode.kind, sources: mode.objects, target });
+            }}
+          />
+        ) : null}
+
+        {settings ? (
+          <SettingsModal
+            onClose={() => setSettings(false)}
+            profile={profile}
+            bucket={bucket}
+            prefix={prefix}
+            notify={notify}
+          />
+        ) : null}
+
+        {toast ? (
+          <div className="toast" role="status">
+            {toast}
           </div>
         ) : null}
-      </main>
-
-      {transfersOpen ? (
-        <TransferPanel
-          tasks={tasks.data ?? []}
-          onClose={() => setTransfersOpen(false)}
-          onChanged={() => void queryClient.invalidateQueries({ queryKey: ["transfers"] })}
-          notify={notify}
-        />
-      ) : null}
-
-      {connection ? (
-        <ConnectionModal
-          profile={connection.profile}
-          onRemove={(target) => {
-            setConnection(null);
-            setRemoving(target);
-          }}
-          onClose={() => setConnection(null)}
-          onSaved={(saved) => {
-            setConnection(null);
-            setProfileId(saved.id);
-            void queryClient.invalidateQueries({ queryKey: ["profiles"] });
-            notify(t("connectionSaved"));
-          }}
-        />
-      ) : null}
-
-      {removing ? (
-        <ConfirmDialog
-          title={t("removeConnection")}
-          message={t("removeHint", { name: removing.name })}
-          confirmLabel={t("remove")}
-          danger
-          onClose={() => setRemoving(null)}
-          onConfirm={removeProfile}
-        />
-      ) : null}
-
-      {sharing ? (
-        <ShareModal
-          object={sharing}
-          profile={profile}
-          link={shareLink}
-          setLink={setShareLink}
-          notify={notify}
-          onClose={() => {
-            setSharing(null);
-            setShareLink(null);
-          }}
-        />
-      ) : null}
-
-      {preview ? (
-        <PreviewModal
-          object={preview}
-          onClose={() => setPreview(null)}
-          onDownload={() => void onDownload(preview)}
-        />
-      ) : null}
-
-      {plan ? (
-        <PlanModal
-          plan={plan}
-          onClose={closePlan}
-          onExecute={() => void runExecute(execute)}
-          busy={executeState.busy}
-          error={executeState.error}
-          pending={pendingCount}
-        />
-      ) : null}
-
-      {mode ? (
-        <DestinationModal
-          mode={mode}
-          current={{ profileId, bucket, key: prefix }}
-          onClose={() => setMode(null)}
-          onCreate={(target) => {
-            setMode(null);
-            createPlan.mutate({ operation: mode.kind, sources: mode.objects, target });
-          }}
-        />
-      ) : null}
-
-      {settings ? (
-        <SettingsModal
-          onClose={() => setSettings(false)}
-          profile={profile}
-          bucket={bucket}
-          prefix={prefix}
-          notify={notify}
-        />
-      ) : null}
-
-      {toast ? (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }

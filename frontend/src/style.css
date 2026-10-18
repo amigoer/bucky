@@ -26,6 +26,7 @@
   --shadow-pop: 0 18px 50px rgba(24, 22, 16, 0.22);
   --radius: 12px;
   --radius-small: 8px;
+  --titlebar-height: 40px;
   color-scheme: light;
 }
 
@@ -132,10 +133,78 @@ a {
   background: transparent;
 }
 
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.titlebar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--titlebar-height);
+  padding: 0 12px;
+  user-select: none;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  --wails-draggable: drag;
+}
+
+/* Native traffic lights start at 16px and span 52px; keep the brand clear. */
+.titlebar--mac {
+  padding-left: 78px;
+}
+
+/* --wails-draggable inherits, so controls must opt out to receive clicks. */
+.titlebar button {
+  --wails-draggable: no-drag;
+}
+
+.window-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: 100%;
+  padding-left: 8px;
+  margin-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.window-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  color: var(--text-soft);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.window-control:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+.window-control-close:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
 .app-shell {
   display: grid;
+  flex: 1;
   grid-template-columns: 276px minmax(0, 1fr);
-  height: 100vh;
+  min-height: 0;
   overflow: hidden;
 }
 
