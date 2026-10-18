@@ -53,8 +53,8 @@ The R2 release is being built around these workflows:
 - **Preview** images, audio, video, PDFs, text, code and JSON. Videos stream, so there is no
   waiting for a full download.
 - **Upload and download** files and whole folders by dragging them in. Large files go up in
-  parts. Transfers can be paused, resumed and retried, carry on after a dropped connection or a
-  restart, and are verified when they finish.
+  parts. Transfers can be paused, resumed and retried, and carry on after a dropped connection
+  or a restart. Integrity checks show what was verified using the checks the service supports.
 - **Share** a temporary link for a single file, valid for up to seven days (one hour by
   default). Public links use a domain you have already connected to your bucket.
 - **Host images** for your blog or docs: press a shortcut to upload the image on your clipboard,
@@ -88,8 +88,9 @@ Ask in plain words, and your agent gets it done through Bucky:
 
 > Move everything under `backups/` older than 90 days to `archive/`.
 
-The agent finds the files, shows you the plan, waits for your go-ahead, then moves them and
-reports back.
+The intended flow is to find the files, show you the plan, wait for your go-ahead, then move
+them and report back. Write access will be enabled only for clients with a verified user
+confirmation flow; other clients will be limited to reads and plans.
 
 > Upload `dist` to R2 and give me a link that works for 7 days.
 
