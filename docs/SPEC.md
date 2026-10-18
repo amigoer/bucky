@@ -291,6 +291,6 @@ README 是拿 star 的第一现场，Phase 7 按下面的要求制作，不能�
 - 截图：明暗两套主题，使用真实但脱敏的数据。
 - 写明实测的安装包体积、冷启动时间和内存占用。
 
-发布节奏：先在 X 上的中文独立开发者圈、V2EX、即刻首发，再投 HelloGitHub，最后上 Product Hunt 和 Hacker News。MQ Studio 与本项目的 README 互相导流。
+发布节奏：先在 X 上的中文独立开发者圈、V2EX、即刻首发，再投 HelloGitHub，最后上 Product Hunt 和 Hacker News。
 
 命名：定名 Bucky（原暂名 Bucket Studio），GitHub 仓库为 amigoer/bucky，CLI 命令为 `bucky`。Phase 0 时检查 Homebrew 包名和域名是否可用，有冲突就列出备选方案等我决定。
