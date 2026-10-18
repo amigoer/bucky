@@ -78,7 +78,7 @@ task run
 - `tsc -b`：通过。
 - Biome：退出码 0；仅剩 CSS 的 `noImportantStyles`（减少动态效果块）和 `noDescendingSpecificity` 警告。
 - Vitest：1 个测试文件、5 个测试通过。
-- Vite 生产构建：通过。主 JS 约 432 kB（gzip 约 133 kB），CSS 约 32 kB。
+- Vite 生产构建：通过。输出单个 JS chunk，约 466 kB（gzip 约 144 kB），CSS 约 32 kB。
 - `CGO_ENABLED=0 go build ./cmd/bucky`：通过。
 - Wails 绑定生成：1 个服务、25 个方法、21 个模型、2 个事件。
 
@@ -135,7 +135,9 @@ MCP 通过 stdio 完成 `initialize` 与 `tools/list`。当前工具集：
 
 ### 3.5 桌面启动
 
-macOS 原生二进制启动后进程保持运行，系统窗口列表中出现 1279×871 的应用窗口，符合 1280×840 的窗口配置。应用日志无错误。
+生产前端最初把 Wails 运行时、生成绑定和模型拆成互相引用的 chunk。WKWebView 的模块求值顺序使 service models 在 core models 的 `Profile` 初始化前执行，连接列表查询报 `undefined is not an object (evaluating 'r.createFrom')`。改为静态导入生成绑定后，生产构建只输出一个 JS chunk，不再存在循环 chunk。
+
+修复后在 WKWebView 测试页中以空连接列表响应启动，连接区正常显示 “Add R2 connection”，没有模块错误。macOS 原生二进制已重新构建并打包为本地 ad-hoc 签名的 `.app`，启动后进程保持运行，系统窗口列表中存在 1279×871 的窗口。
 
 由于当前终端没有屏幕录制和辅助功能权限，没有自动截图，也没有执行点击、拖拽和文件选择。界面视觉与交互仍需人工走查。
 
@@ -148,7 +150,7 @@ macOS 原生二进制启动后进程保持运行，系统窗口列表中出现 1
 - **Windows 与 Linux**：没有构建或运行。钥匙串、文件选择、拖拽、剪贴板、原子落盘和临时文件删除在该平台的行为未验证。
 - **真实网络与 CORS**：没有在 WebView 中打开真实 R2 预签名媒体，CORS、视频范围请求和长时间预签名未验证。
 - **大目录性能**：没有构造 10 万对象数据集，虚拟滚动、搜索遍历和用量扫描的交互表现未测量。
-- **桌面打包**：没有生成 `.app`、签名或安装包，也没有验证首次打开流程。
+- **桌面发布**：仅在 macOS 生成过本地 ad-hoc 签名的 `.app`，没有 Developer ID 签名、公证、DMG 安装包或首次打开流程验证。
 - **图床与 Skill 安装器**：剪贴板图片上传、命名模板、压缩/WebP、Markdown 链接和 Skill 一键安装尚未实现。
 - **跨平台三平台构建链路**：当前只在 macOS 完成 Wails 原生构建。
 

@@ -1,5 +1,8 @@
-import type * as core from "../../bindings/github.com/amigoer/bucky/internal/core/models";
-import type * as service from "../../bindings/github.com/amigoer/bucky/internal/service/models";
+// Static imports avoid a cyclic chunk graph that WebKit evaluates out of order.
+import { Events } from "@wailsio/runtime";
+import { DesktopService } from "../../bindings/github.com/amigoer/bucky/internal/app/index";
+import * as core from "../../bindings/github.com/amigoer/bucky/internal/core/models";
+import * as service from "../../bindings/github.com/amigoer/bucky/internal/service/models";
 
 export type Profile = core.Profile;
 export type Bucket = core.Bucket;
@@ -38,52 +41,29 @@ export function isDesktop(): boolean {
 
 async function desktop() {
   if (!isDesktop()) throw new Error("Desktop app required");
-  return (await import("../../bindings/github.com/amigoer/bucky/internal/app/index"))
-    .DesktopService;
+  return DesktopService;
 }
-
-const models = () => import("../../bindings/github.com/amigoer/bucky/internal/core/models");
 
 export const api = {
   Profiles: async () => (await desktop()).Profiles(),
-  SaveProfile: async (input: ProfileInput) => {
-    const [native, model] = await Promise.all([
-      desktop(),
-      import("../../bindings/github.com/amigoer/bucky/internal/service/models"),
-    ]);
-    return native.SaveProfile(model.ProfileInput.createFrom(input));
-  },
+  SaveProfile: async (input: ProfileInput) =>
+    (await desktop()).SaveProfile(service.ProfileInput.createFrom(input)),
   RemoveProfile: async (id: string, confirmed: boolean) =>
     (await desktop()).RemoveProfile(id, confirmed),
   TestConnection: async (id: string) => (await desktop()).TestConnection(id),
   Buckets: async (id: string) => (await desktop()).Buckets(id),
-  List: async (input: ListRequest) => {
-    const [native, model] = await Promise.all([desktop(), models()]);
-    return native.List(model.ListRequest.createFrom(input));
-  },
-  Find: async (input: FindRequest) => {
-    const [native, model] = await Promise.all([desktop(), models()]);
-    return native.Find(model.FindRequest.createFrom(input));
-  },
-  Stat: async (input: ObjectRef) => {
-    const [native, model] = await Promise.all([desktop(), models()]);
-    return native.Stat(model.ObjectRef.createFrom(input));
-  },
-  ReadText: async (input: ObjectRef) => {
-    const [native, model] = await Promise.all([desktop(), models()]);
-    return native.ReadText(model.ObjectRef.createFrom(input));
-  },
-  Share: async (input: ObjectRef, seconds: number, publicLink: boolean) => {
-    const [native, model] = await Promise.all([desktop(), models()]);
-    return native.Share(model.ObjectRef.createFrom(input), seconds, publicLink);
-  },
+  List: async (input: ListRequest) => (await desktop()).List(core.ListRequest.createFrom(input)),
+  Find: async (input: FindRequest) => (await desktop()).Find(core.FindRequest.createFrom(input)),
+  Stat: async (input: ObjectRef) => (await desktop()).Stat(core.ObjectRef.createFrom(input)),
+  ReadText: async (input: ObjectRef) =>
+    (await desktop()).ReadText(core.ObjectRef.createFrom(input)),
+  Share: async (input: ObjectRef, seconds: number, publicLink: boolean) =>
+    (await desktop()).Share(core.ObjectRef.createFrom(input), seconds, publicLink),
   Usage: async (id: string, bucket: string, prefix: string, requestID: string) =>
     (await desktop()).Usage(id, bucket, prefix, requestID),
   CancelRequest: async (id: string) => (await desktop()).CancelRequest(id),
-  StartTransfer: async (input: TransferRequest) => {
-    const [native, model] = await Promise.all([desktop(), models()]);
-    return native.StartTransfer(model.TransferRequest.createFrom(input));
-  },
+  StartTransfer: async (input: TransferRequest) =>
+    (await desktop()).StartTransfer(core.TransferRequest.createFrom(input)),
   UploadPaths: async (id: string, bucket: string, prefix: string, paths: string[]) =>
     (await desktop()).UploadPaths(id, bucket, prefix, paths),
   Tasks: async () => (await desktop()).Tasks(),
@@ -91,10 +71,8 @@ export const api = {
   PauseTransfer: async (id: string) => (await desktop()).PauseTransfer(id),
   CancelTransfer: async (id: string) => (await desktop()).CancelTransfer(id),
   SetRate: async (bytesPerSecond: number) => (await desktop()).SetRate(bytesPerSecond),
-  CreatePlan: async (input: PlanRequest) => {
-    const [native, model] = await Promise.all([desktop(), models()]);
-    return native.CreatePlan(model.PlanRequest.createFrom(input));
-  },
+  CreatePlan: async (input: PlanRequest) =>
+    (await desktop()).CreatePlan(core.PlanRequest.createFrom(input)),
   ExecutePlan: async (id: string, confirmed: boolean) =>
     (await desktop()).ExecutePlan(id, confirmed),
   GetPlan: async (id: string) => (await desktop()).GetPlan(id),
@@ -105,7 +83,6 @@ export const api = {
 
 export async function onFilesDropped(callback: (paths: string[]) => void): Promise<() => void> {
   if (!isDesktop()) return () => {};
-  const { Events } = await import("@wailsio/runtime");
   return Events.On("files:dropped", (event) => {
     const data: unknown = event.data;
     const payload =
