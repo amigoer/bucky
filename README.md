@@ -25,8 +25,9 @@
 
 > [!NOTE]
 > Bucky is in early development and has not been released yet. The first release targets
-> Cloudflare R2 only. The features below are planned; other storage providers will follow in
-> separate releases.
+> Cloudflare R2 only. The core R2 workflow is implemented and passes local protocol tests
+> against MinIO and RustFS, but it has not yet been verified against a real R2 account.
+> Interfaces and behavior may change; other storage providers will follow in separate releases.
 
 ## Why Bucky
 
@@ -46,7 +47,9 @@ Bucky brings them together.
 
 ## What you can do
 
-The R2 release is being built around these workflows:
+The R2 release is being built around these workflows. Browsing, transfers with resume,
+previews, sharing, usage and confirmed plans are implemented in the current development build;
+image hosting and one-click Skill installation are still in progress.
 
 - **Browse** buckets as folders, with breadcrumbs, list and grid views, sorting, search and an
   info panel. Paginated lists are designed to keep large folders responsive.
@@ -78,9 +81,10 @@ throughout.
 | Tencent Cloud COS, Qiniu Kodo | v0.5: one provider at a time |
 | Azure Blob Storage, Google Cloud Storage and more | Later |
 
-No provider is available yet. R2 connections will support an explicit bucket name, so you
-can use bucket-scoped credentials without permission to list every bucket. Provider-specific
-features will be added after each provider's basic file operations are verified.
+R2 support is implemented but not yet verified against a real Cloudflare account. The protocol
+contract and service workflows pass against MinIO and RustFS. R2 connections can use an explicit
+bucket name, so bucket-scoped credentials do not need permission to list every bucket.
+Provider-specific features will be added after each provider's basic file operations are verified.
 
 ## Let your agent help
 
@@ -92,7 +96,7 @@ The intended flow is to find the files, show you the plan, wait for your go-ahea
 them and report back. Write access will be enabled only for clients with a verified user
 confirmation flow; other clients will be limited to reads and plans.
 
-> Upload `dist` to R2 and give me a link that works for 7 days.
+> Upload `dist` to R2, then give me links that work for 7 days.
 
 For a folder such as `dist/`, the result is a list of links to its files, each with its own
 expiry. A folder is not a single downloadable object.
@@ -102,7 +106,8 @@ expiry. A folder is not a single downloadable object.
 - **No keys in prompts.** Agents use the connections you set up in the app and never see your
   credentials.
 - **Safe by default.** Reading happens right away. Deleting, moving and overwriting always come
-  back to you as a plan first.
+  back to you as a plan first. The current MCP server exposes reads and plan creation only;
+  writing stays behind an explicit human confirmation in the app or CLI.
 - **Read-only when you want it.** Mark a connection read-only and no agent can change anything
   in it.
 - **Scriptable too.** The `bucky` command does everything an agent can, with JSON output for
