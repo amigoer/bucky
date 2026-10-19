@@ -26,9 +26,11 @@ func main() {
 	}
 	desktop := application.New(application.Options{
 		Name: "Bucky", Description: "Cloudflare R2 object storage client",
-		Services: []application.Service{application.NewService(app.New(backend))},
-		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(frontend.Assets)},
-		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		Services: []application.Service{application.NewServiceWithOptions(app.New(backend), application.ServiceOptions{
+			MarshalError: app.MarshalError,
+		})},
+		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(frontend.Assets)},
+		Mac:    application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	})
 	window := desktop.Window.NewWithOptions(newWindowOptions())
 	alignTrafficLights(window)

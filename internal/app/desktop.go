@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,16 @@ type DesktopService struct {
 }
 
 func New(backend *service.Service) *DesktopService { return &DesktopService{backend: backend} }
+
+// MarshalError gives the renderer a stable error code even when the error was
+// wrapped on its way out of the service layer.
+func MarshalError(err error) []byte {
+	data, marshalErr := json.Marshal(core.AsError(err))
+	if marshalErr != nil {
+		return nil
+	}
+	return data
+}
 
 func (d *DesktopService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	d.sweepStaged(ctx)
