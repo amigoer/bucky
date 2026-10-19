@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/amigoer/bucky/internal/core"
@@ -89,6 +90,9 @@ func (s *Service) CreatePlan(ctx context.Context, req core.PlanRequest) (core.Op
 		if len(req.Sources) == 0 || len(req.Sources) > 1000 {
 			return p, core.Invalid("A plan must contain between 1 and 1000 explicit objects")
 		}
+		if req.Base != "" && !strings.HasSuffix(req.Base, "/") {
+			return p, core.Invalid("A plan base must be a prefix ending with '/'")
+		}
 		seen := map[core.ObjectRef]bool{}
 		targets := map[core.ObjectRef]bool{}
 		for _, ref := range req.Sources {
@@ -109,7 +113,15 @@ func (s *Service) CreatePlan(ctx context.Context, req core.PlanRequest) (core.Op
 				if target.ProfileID != ref.ProfileID {
 					return p, core.NewError("unsupported", "Copy and move require the same connection")
 				}
-				if len(req.Sources) > 1 {
+				if req.Base != "" {
+					if !strings.HasPrefix(ref.Key, req.Base) || ref.Key == req.Base {
+						return p, core.Invalid("Every source must be inside the plan base prefix")
+					}
+					if target.Key != "" && !strings.HasSuffix(target.Key, "/") {
+						return p, core.Invalid("A destination prefix must end with '/'")
+					}
+					target.Key += strings.TrimPrefix(ref.Key, req.Base)
+				} else if len(req.Sources) > 1 {
 					if target.Key != "" && target.Key[len(target.Key)-1] != '/' {
 						return p, core.Invalid("A multi-object destination must end with '/'")
 					}

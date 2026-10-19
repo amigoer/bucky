@@ -453,6 +453,11 @@ export class PlanRequest {
     "target": ObjectRef;
     "localPath": string;
 
+    /**
+     * Base, when set, keeps each source key's path below it under the target prefix.
+     */
+    "base"?: string;
+
     /** Creates a new PlanRequest instance. */
     constructor($$source: Partial<PlanRequest> = {}) {
         if (!("operation" in $$source)) {
@@ -785,6 +790,7 @@ export class Usage {
     "objects": number;
     "bytes": number;
     "types": { [_ in string]?: number };
+    "counts": { [_ in string]?: number };
     "scannedAt": string;
     "complete": boolean;
 
@@ -808,6 +814,9 @@ export class Usage {
         if (!("types" in $$source)) {
             this["types"] = {};
         }
+        if (!("counts" in $$source)) {
+            this["counts"] = {};
+        }
         if (!("scannedAt" in $$source)) {
             this["scannedAt"] = "0001-01-01T00:00:00.000Z";
         }
@@ -823,9 +832,13 @@ export class Usage {
      */
     static createFrom($$source: any = {}): Usage {
         const $$createField5_0 = $$createType15;
+        const $$createField6_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("types" in $$parsedSource) {
             $$parsedSource["types"] = $$createField5_0($$parsedSource["types"]);
+        }
+        if ("counts" in $$parsedSource) {
+            $$parsedSource["counts"] = $$createField6_0($$parsedSource["counts"]);
         }
         return new Usage($$parsedSource as Partial<Usage>);
     }

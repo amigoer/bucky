@@ -180,6 +180,8 @@ type PlanRequest struct {
 	Sources   []ObjectRef `json:"sources"`
 	Target    ObjectRef   `json:"target"`
 	LocalPath string      `json:"localPath"`
+	// Base, when set, keeps each source key's path below it under the target prefix.
+	Base string `json:"base,omitempty"`
 }
 
 type PlanItem struct {
@@ -211,6 +213,7 @@ type Usage struct {
 	Objects   int64            `json:"objects"`
 	Bytes     int64            `json:"bytes"`
 	Types     map[string]int64 `json:"types"`
+	Counts    map[string]int64 `json:"counts"`
 	ScannedAt time.Time        `json:"scannedAt"`
 	Complete  bool             `json:"complete"`
 }

@@ -5,3 +5,8 @@ import * as DesktopService from "./desktopservice.js";
 export {
     DesktopService
 };
+
+export {
+    DownloadResult,
+    UsageProgress
+} from "./models.js";

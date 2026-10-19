@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
+	"maps"
 	"net/url"
 	"os"
 	"path"
@@ -95,7 +96,81 @@ func (s *Service) CancelTransfer(ctx context.Context, id string) error {
 }
 
 func (s *Service) SaveProfile(ctx context.Context, input ProfileInput) (core.Profile, error) {
-	p := input.Profile
+	p, err := normalizeProfile(input.Profile)
+	if err != nil {
+		return p, err
+	}
+	err = s.Transfers.WithWriteLock(ctx, func() error {
+		now := time.Now().UTC()
+		if p.ID == "" {
+			p.ID, p.CreatedAt = ID(), now
+		} else {
+			old, err := s.DB.Profile(ctx, p.ID)
+			if err != nil {
+				return err
+			}
+			p.CreatedAt = old.CreatedAt
+		}
+		p.UpdatedAt = now
+		if p.CredentialSource == "keychain" {
+			if input.AccessKeyID != "" || input.SecretAccessKey != "" {
+				if input.AccessKeyID == "" || input.SecretAccessKey == "" {
+					return core.Invalid("Both R2 S3 access key fields are required")
+				}
+				if err := s.vault.Set(p.ID, core.Credentials{AccessKeyID: input.AccessKeyID, SecretAccessKey: input.SecretAccessKey}); err != nil {
+					return err
+				}
+			} else if _, err := s.vault.Get(p.ID); err != nil {
+				return err
+			}
+		}
+		return s.DB.SaveProfile(ctx, p)
+	})
+	return p, err
+}
+
+// TestDraft checks unsaved connection settings without storing them. Blank
+// keychain fields fall back to the credentials saved for an existing profile.
+func (s *Service) TestDraft(ctx context.Context, input ProfileInput) ([]core.Bucket, error) {
+	p, err := normalizeProfile(input.Profile)
+	if err != nil {
+		return nil, err
+	}
+	var creds core.Credentials
+	switch {
+	case p.CredentialSource == "environment":
+		creds, err = profile.Resolve(p, s.vault)
+	case input.AccessKeyID != "" || input.SecretAccessKey != "":
+		if input.AccessKeyID == "" || input.SecretAccessKey == "" {
+			return nil, core.Invalid("Both R2 S3 access key fields are required")
+		}
+		creds = core.Credentials{AccessKeyID: input.AccessKeyID, SecretAccessKey: input.SecretAccessKey}
+	case p.ID != "":
+		if _, err = s.DB.Profile(ctx, p.ID); err == nil {
+			creds, err = s.vault.Get(p.ID)
+		}
+	default:
+		err = core.Invalid("Both R2 S3 access key fields are required")
+	}
+	if err != nil {
+		return nil, err
+	}
+	driver, err := s.factory(ctx, p, creds)
+	if err != nil {
+		return nil, err
+	}
+	if p.Bucket != "" {
+		_, err = driver.List(ctx, core.ListRequest{ProfileID: p.ID, Bucket: p.Bucket, Limit: 1})
+		return []core.Bucket{{Name: p.Bucket}}, err
+	}
+	lister, ok := driver.(core.BucketLister)
+	if !ok {
+		return nil, core.NewError("unsupported", "Bucket discovery is unavailable; specify a bucket in the connection")
+	}
+	return lister.Buckets(ctx)
+}
+
+func normalizeProfile(p core.Profile) (core.Profile, error) {
 	p.Name = strings.TrimSpace(p.Name)
 	if p.Name == "" || len(p.Name) > 100 {
 		return p, core.Invalid("A connection name of 1 to 100 characters is required")
@@ -135,33 +210,7 @@ func (s *Service) SaveProfile(ctx context.Context, input ProfileInput) (core.Pro
 		}
 		p.PublicURL = strings.TrimRight(p.PublicURL, "/")
 	}
-	err := s.Transfers.WithWriteLock(ctx, func() error {
-		now := time.Now().UTC()
-		if p.ID == "" {
-			p.ID, p.CreatedAt = ID(), now
-		} else {
-			old, err := s.DB.Profile(ctx, p.ID)
-			if err != nil {
-				return err
-			}
-			p.CreatedAt = old.CreatedAt
-		}
-		p.UpdatedAt = now
-		if p.CredentialSource == "keychain" {
-			if input.AccessKeyID != "" || input.SecretAccessKey != "" {
-				if input.AccessKeyID == "" || input.SecretAccessKey == "" {
-					return core.Invalid("Both R2 S3 access key fields are required")
-				}
-				if err := s.vault.Set(p.ID, core.Credentials{AccessKeyID: input.AccessKeyID, SecretAccessKey: input.SecretAccessKey}); err != nil {
-					return err
-				}
-			} else if _, err := s.vault.Get(p.ID); err != nil {
-				return err
-			}
-		}
-		return s.DB.SaveProfile(ctx, p)
-	})
-	return p, err
+	return p, nil
 }
 
 func (s *Service) RemoveProfile(ctx context.Context, id string, confirmed bool) error {
@@ -409,11 +458,18 @@ func (s *Service) Find(ctx context.Context, req core.FindRequest) (core.FindResu
 }
 
 func (s *Service) Usage(ctx context.Context, id, bucket, prefix string) (core.Usage, error) {
-	u := core.Usage{ProfileID: id, Bucket: bucket, Prefix: prefix, Types: map[string]int64{}, ScannedAt: time.Now().UTC()}
+	return s.ScanUsage(ctx, id, bucket, prefix, nil)
+}
+
+// ScanUsage reports the running totals after each page. On error the partial
+// totals are returned with Complete unset; only complete scans are cached.
+func (s *Service) ScanUsage(ctx context.Context, id, bucket, prefix string, progress func(core.Usage)) (core.Usage, error) {
+	u := core.Usage{ProfileID: id, Bucket: bucket, Prefix: prefix, Types: map[string]int64{}, Counts: map[string]int64{}, ScannedAt: time.Now().UTC()}
 	cursor := ""
 	for {
 		page, err := s.List(ctx, core.ListRequest{ProfileID: id, Bucket: bucket, Prefix: prefix, Cursor: cursor, Limit: 1000})
 		if err != nil {
+			u.ScannedAt = time.Now().UTC()
 			return u, err
 		}
 		for _, obj := range page.Objects {
@@ -424,6 +480,7 @@ func (s *Service) Usage(ctx context.Context, id, bucket, prefix string) (core.Us
 				ext = "(none)"
 			}
 			u.Types[ext] += obj.Size
+			u.Counts[ext]++
 		}
 		if page.NextCursor == "" {
 			u.Complete = true
@@ -431,10 +488,20 @@ func (s *Service) Usage(ctx context.Context, id, bucket, prefix string) (core.Us
 			return u, s.DB.SaveUsage(ctx, u)
 		}
 		if page.NextCursor == cursor {
+			u.ScannedAt = time.Now().UTC()
 			return u, core.NewError("protocol", "The storage service repeated a pagination cursor")
 		}
 		cursor = page.NextCursor
+		if progress != nil {
+			progress(cloneUsage(u))
+		}
 	}
+}
+
+func cloneUsage(u core.Usage) core.Usage {
+	u.Types = maps.Clone(u.Types)
+	u.Counts = maps.Clone(u.Counts)
+	return u
 }
 
 func ID() string {

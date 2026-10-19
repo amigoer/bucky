@@ -8,4 +8,5 @@ import (
 func init() {
 	application.RegisterEvent[[]string]("files:dropped")
 	application.RegisterEvent[core.TransferTask]("transfer:updated")
+	application.RegisterEvent[UsageProgress]("usage:progress")
 }

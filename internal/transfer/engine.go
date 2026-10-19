@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	maxConcurrent            = 2
+	defaultConcurrency       = 2
+	maxConcurrency           = 8
 	multipartThreshold int64 = 16 << 20
 	minPartSize        int64 = 8 << 20
 	maxParts           int64 = 10000
@@ -38,6 +39,7 @@ type Engine struct {
 	jobs      map[string]*job
 	queue     []*job
 	running   int
+	limit     int
 	wg        sync.WaitGroup
 	events    chan core.TransferTask
 	eventDone chan struct{}
@@ -60,7 +62,7 @@ func New(db *store.Store, resolve func(context.Context, string) (core.ObjectStor
 		db: db, resolve: resolve, ctx: ctx, cancel: cancel,
 		lock: flock.New(filepath.Join(db.Dir, "write.lock")),
 		jobs: make(map[string]*job), events: make(chan core.TransferTask, 128),
-		eventDone: make(chan struct{}),
+		eventDone: make(chan struct{}), limit: defaultConcurrency,
 	}
 	go func() {
 		defer close(e.eventDone)
@@ -290,6 +292,16 @@ func (e *Engine) SetRate(bytesPerSecond int64) {
 	e.rate.set(bytesPerSecond)
 }
 
+// SetConcurrency limits how many transfers run at once. Lowering it lets
+// running transfers finish rather than pausing them.
+func (e *Engine) SetConcurrency(n int) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.limit = min(max(n, 1), maxConcurrency)
+	e.scheduleLocked()
+	return e.limit
+}
+
 func (e *Engine) Close() error {
 	e.mu.Lock()
 	if e.closed {
@@ -401,7 +413,7 @@ func (e *Engine) enqueueLocked(task core.TransferTask, intent string) *job {
 }
 
 func (e *Engine) scheduleLocked() {
-	for !e.closed && e.running < maxConcurrent && len(e.queue) != 0 {
+	for !e.closed && e.running < e.limit && len(e.queue) != 0 {
 		j := e.queue[0]
 		e.queue = e.queue[1:]
 		if e.jobs[j.task.ID] != j {

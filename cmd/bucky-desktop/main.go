@@ -7,7 +7,6 @@ import (
 
 	"github.com/amigoer/bucky/frontend"
 	"github.com/amigoer/bucky/internal/app"
-	"github.com/amigoer/bucky/internal/core"
 	"github.com/amigoer/bucky/internal/macwindow"
 	"github.com/amigoer/bucky/internal/service"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -16,8 +15,8 @@ import (
 
 // Keep in step with --titlebar-height in frontend/src/style.css.
 const (
-	titleBarHeight   = 40.0
-	trafficLightLeft = 16.0
+	titleBarHeight   = 52.0
+	trafficLightLeft = 18.0
 )
 
 func main() {
@@ -31,9 +30,6 @@ func main() {
 		Assets:   application.AssetOptions{Handler: application.AssetFileServerFS(frontend.Assets)},
 		Mac:      application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
 	})
-	backend.Transfers.OnUpdate = func(task core.TransferTask) {
-		desktop.Event.Emit("transfer:updated", task)
-	}
 	window := desktop.Window.NewWithOptions(newWindowOptions())
 	alignTrafficLights(window)
 	window.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
@@ -52,7 +48,7 @@ func newWindowOptions() application.WebviewWindowOptions {
 		// macOS keeps the native frame so its traffic lights stay available;
 		// the renderer draws the rest of the title bar on every platform.
 		Frameless:        runtime.GOOS != "darwin",
-		BackgroundColour: application.NewRGB(246, 247, 244),
+		BackgroundColour: application.NewRGB(255, 255, 255),
 		Mac: application.MacWindow{
 			TitleBar: application.MacTitleBarHidden,
 		},

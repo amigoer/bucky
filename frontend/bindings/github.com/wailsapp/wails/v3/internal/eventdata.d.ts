@@ -7,6 +7,9 @@ import type { Events } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as app$0 from "../../../../amigoer/bucky/internal/app/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as core$0 from "../../../../amigoer/bucky/internal/core/models.js";
 
 declare module "@wailsio/runtime" {
@@ -14,6 +17,7 @@ declare module "@wailsio/runtime" {
         interface CustomEvents {
             "files:dropped": string[];
             "transfer:updated": core$0.TransferTask;
+            "usage:progress": app$0.UsageProgress;
         }
     }
 }

@@ -19,6 +19,16 @@ type DesktopService struct {
 
 func New(backend *service.Service) *DesktopService { return &DesktopService{backend: backend} }
 
+func (d *DesktopService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
+	d.sweepStaged(ctx)
+	events := application.Get().Event
+	d.backend.Transfers.OnUpdate = func(task core.TransferTask) {
+		events.Emit("transfer:updated", task)
+		d.releaseStaged(task)
+	}
+	return nil
+}
+
 func (d *DesktopService) ServiceShutdown() error { return d.backend.Close() }
 
 func (d *DesktopService) Profiles(ctx context.Context) ([]core.Profile, error) {
@@ -35,6 +45,10 @@ func (d *DesktopService) RemoveProfile(ctx context.Context, id string, confirmed
 
 func (d *DesktopService) TestConnection(ctx context.Context, id string) ([]core.Bucket, error) {
 	return d.backend.TestConnection(ctx, id)
+}
+
+func (d *DesktopService) TestDraft(ctx context.Context, input service.ProfileInput) ([]core.Bucket, error) {
+	return d.backend.TestDraft(ctx, input)
 }
 
 func (d *DesktopService) Buckets(ctx context.Context, id string) ([]core.Bucket, error) {
@@ -61,11 +75,25 @@ func (d *DesktopService) Find(ctx context.Context, req core.FindRequest) (core.F
 	return d.backend.Find(ctx, req)
 }
 
+type UsageProgress struct {
+	RequestID string     `json:"requestId"`
+	Usage     core.Usage `json:"usage"`
+}
+
+// Usage returns the partial totals without an error when the request is
+// cancelled; Complete stays false.
 func (d *DesktopService) Usage(ctx context.Context, id, bucket, prefix, requestID string) (core.Usage, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	d.cancel.Store(requestID, cancel)
 	defer func() { cancel(); d.cancel.Delete(requestID) }()
-	return d.backend.Usage(ctx, id, bucket, prefix)
+	events := application.Get().Event
+	usage, err := d.backend.ScanUsage(ctx, id, bucket, prefix, func(u core.Usage) {
+		events.Emit("usage:progress", UsageProgress{RequestID: requestID, Usage: u})
+	})
+	if err != nil && ctx.Err() != nil && core.AsError(err).Code == "cancelled" {
+		return usage, nil
+	}
+	return usage, err
 }
 
 func (d *DesktopService) CancelRequest(id string) {
@@ -144,6 +172,10 @@ func (d *DesktopService) SetRate(bytesPerSecond int) {
 	d.backend.Transfers.SetRate(int64(bytesPerSecond))
 }
 
+func (d *DesktopService) SetConcurrency(n int) int {
+	return d.backend.Transfers.SetConcurrency(n)
+}
+
 func (d *DesktopService) CreatePlan(ctx context.Context, req core.PlanRequest) (core.OperationPlan, error) {
 	return d.backend.CreatePlan(ctx, req)
 }
@@ -176,6 +208,14 @@ func (d *DesktopService) PickFiles(directory bool) ([]string, error) {
 		filenames = []string{}
 	}
 	return filenames, nil
+}
+
+func (d *DesktopService) PickDirectory() (string, error) {
+	filename, err := application.Get().Dialog.OpenFile().CanChooseFiles(false).CanChooseDirectories(true).CanCreateDirectories(true).PromptForSingleSelection()
+	if err != nil {
+		return "", core.NewError("dialog", "Cannot open the directory picker")
+	}
+	return filename, nil
 }
 
 func (d *DesktopService) PickDownload(name string) (string, error) {
