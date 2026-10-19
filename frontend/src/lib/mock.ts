@@ -2,6 +2,7 @@
 import type {
   Backend,
   Bucket,
+  CloudflareSignIn,
   EventSource,
   ObjectInfo,
   ObjectRef,
@@ -118,11 +119,20 @@ function seed(): Map<string, Map<string, StoredObject>> {
     modified: now - day,
     contentType: "application/json",
   });
+  const cdn = new Map<string, StoredObject>();
+  cdn.set("logo.svg", { size: 8 * 1024, modified: now - 5 * day, contentType: "image/svg+xml" });
+  cdn.set("og.png", { size: 320 * 1024, modified: now - 5 * day, contentType: "image/png" });
+  cdn.set("fonts/inter.woff2", {
+    size: 112 * 1024,
+    modified: now - 11 * day,
+    contentType: "font/woff2",
+  });
   return new Map([
     ["p1/media", media],
     ["p1/assets", assets],
     ["p1/builds", new Map()],
     ["p2/prod-backups", backups],
+    ["p3/media-cdn", cdn],
   ]);
 }
 
@@ -159,6 +169,19 @@ export function createMockBackend(): { backend: Backend; events: EventSource } {
       createdAt: new Date(now - 60 * day).toISOString(),
       updatedAt: new Date(now - 2 * day).toISOString(),
     }),
+    core.Profile.createFrom({
+      id: "p3",
+      name: "CDN assets",
+      providerType: "r2",
+      accountId: "4f1c9e2a7d0b4c3e8a9f1b2c3d4e5f60",
+      jurisdiction: "default",
+      bucket: "media-cdn",
+      publicUrl: "https://cdn.example.dev",
+      readOnly: false,
+      credentialSource: "cloudflare",
+      createdAt: new Date(now - 8 * day).toISOString(),
+      updatedAt: new Date(now - 8 * day).toISOString(),
+    }),
   ];
   const store = seed();
   const tasks = new Map<string, TransferTask>();
@@ -167,9 +190,25 @@ export function createMockBackend(): { backend: Backend; events: EventSource } {
   const listeners = {
     transfer: new Set<(task: TransferTask) => void>(),
     usage: new Set<(p: UsageProgress) => void>(),
+    cloudflare: new Set<(update: CloudflareSignIn) => void>(),
   };
   let concurrency = 2;
   let rate = 0;
+  let settings = service.Settings.createFrom({
+    cloudflareClientId: "",
+    cloudflareRedirectUri: "http://127.0.0.1:8976/oauth/callback",
+    cloudflareScopes: [
+      "account-settings.read",
+      "workers-r2.read",
+      "workers-r2.write",
+      "account-api-tokens.write",
+    ],
+  });
+  const cloudflareSessions = new Map<string, { accountId: string; timer?: number }>();
+  const authorized = new Set<string>(["p1"]);
+  const emitCloudflare = (update: CloudflareSignIn) => {
+    for (const cb of listeners.cloudflare) cb(service.CloudflareSignIn.createFrom({ ...update }));
+  };
 
   const bucketMap = (profileId: string, bucket: string) => {
     const m = store.get(`${profileId}/${bucket}`);
@@ -694,6 +733,147 @@ export function createMockBackend(): { backend: Backend; events: EventSource } {
     async CopyText(text) {
       await navigator.clipboard?.writeText(text).catch(() => {});
     },
+    async Settings() {
+      await sleep(60);
+      return service.Settings.createFrom({ ...settings });
+    },
+    async SaveSettings(input) {
+      await sleep(200);
+      const next = service.Settings.createFrom({ ...input });
+      if (/\s/.test(next.cloudflareClientId))
+        return fail("invalid_argument", "The Cloudflare OAuth client ID cannot contain spaces");
+      if (!/^http:\/\/(127\.0\.0\.1|localhost|\[::1\]):\d+\//.test(next.cloudflareRedirectUri))
+        return fail(
+          "invalid_argument",
+          "The OAuth redirect URI must be a loopback HTTP address such as http://127.0.0.1:8976/oauth/callback",
+        );
+      settings = next;
+      return service.Settings.createFrom({ ...settings });
+    },
+    async StartCloudflareSignIn() {
+      await sleep(150);
+      if (!settings.cloudflareClientId)
+        return fail(
+          "configuration",
+          "Add the Cloudflare OAuth client ID in settings before signing in",
+        );
+      const sessionId = id();
+      const authUrl = `https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=${encodeURIComponent(settings.cloudflareClientId)}&redirect_uri=${encodeURIComponent(settings.cloudflareRedirectUri)}&state=${id()}&code_challenge=mock&code_challenge_method=S256`;
+      const timer = window.setTimeout(() => {
+        const session = cloudflareSessions.get(sessionId);
+        if (!session) return;
+        session.accountId = profiles[0].accountId;
+        emitCloudflare(
+          service.CloudflareSignIn.createFrom({
+            sessionId,
+            state: "authorized",
+            authUrl,
+            redirectUri: settings.cloudflareRedirectUri,
+            accounts: [
+              { id: profiles[0].accountId, name: "Acme Inc" },
+              { id: profiles[1].accountId, name: "Acme Labs" },
+            ],
+          }),
+        );
+      }, 1500);
+      cloudflareSessions.set(sessionId, { accountId: "", timer });
+      return service.CloudflareSignIn.createFrom({
+        sessionId,
+        state: "waiting",
+        authUrl,
+        redirectUri: settings.cloudflareRedirectUri,
+        accounts: [],
+      });
+    },
+    async CloudflareSignInStatus(sessionId) {
+      const session = cloudflareSessions.get(sessionId);
+      if (!session) return fail("not_found", "This sign-in attempt is no longer available");
+      return service.CloudflareSignIn.createFrom({
+        sessionId,
+        state: session.accountId ? "authorized" : "waiting",
+        authUrl: "",
+        redirectUri: settings.cloudflareRedirectUri,
+        accounts: session.accountId ? [{ id: session.accountId, name: "Acme Inc" }] : [],
+      });
+    },
+    async CancelCloudflareSignIn(sessionId) {
+      const session = cloudflareSessions.get(sessionId);
+      if (!session) return;
+      if (session.timer) window.clearTimeout(session.timer);
+      cloudflareSessions.delete(sessionId);
+      emitCloudflare(
+        service.CloudflareSignIn.createFrom({
+          sessionId,
+          state: "failed",
+          authUrl: "",
+          redirectUri: settings.cloudflareRedirectUri,
+          accounts: [],
+          error: { code: "cancelled", message: "Operation cancelled" },
+        }),
+      );
+    },
+    async CloudflareBuckets(sessionId, accountId) {
+      await sleep(600);
+      if (!cloudflareSessions.has(sessionId))
+        return fail("not_found", "Start the Cloudflare sign-in again");
+      if (!accountId) return fail("invalid_argument", "Select a Cloudflare account first");
+      return ["media-cdn", "assets", "builds"].map((name) =>
+        core.Bucket.createFrom({ name, createdAt: new Date(now - 30 * day).toISOString() }),
+      );
+    },
+    async ConnectCloudflare(input) {
+      await sleep(1200);
+      const session = cloudflareSessions.get(input.sessionId);
+      if (!session) return fail("not_found", "Start the Cloudflare sign-in again");
+      if (!input.bucket) return fail("invalid_argument", "Select a bucket");
+      cloudflareSessions.delete(input.sessionId);
+      const p = core.Profile.createFrom({
+        id: id(),
+        name: input.name,
+        providerType: "r2",
+        accountId: input.accountId,
+        jurisdiction: input.jurisdiction || "default",
+        bucket: input.bucket,
+        publicUrl: input.publicUrl,
+        readOnly: input.readOnly,
+        credentialSource: "cloudflare",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      if (!store.has(`${p.id}/${p.bucket}`)) store.set(`${p.id}/${p.bucket}`, new Map());
+      profiles.push(p);
+      authorized.add(p.id);
+      return p;
+    },
+    async CloudflareStatus(profileId) {
+      await sleep(80);
+      const p = profile(profileId);
+      if (p?.credentialSource !== "cloudflare")
+        return service.CloudflareStatus.createFrom({ authorized: false });
+      return service.CloudflareStatus.createFrom({
+        authorized: authorized.has(profileId),
+        tokenName: `Bucky ${p.name} ${p.bucket}`,
+        authorizedAt: p.updatedAt,
+      });
+    },
+    async ReauthorizeCloudflare(profileId) {
+      await sleep(900);
+      const p = profile(profileId);
+      if (!p) return fail("not_found", "The connection does not exist");
+      if (p.credentialSource !== "cloudflare")
+        return fail("unsupported", "This connection does not use Cloudflare sign-in");
+      authorized.add(profileId);
+      return core.Profile.createFrom({ ...p });
+    },
+    async DisconnectCloudflare(profileId, confirmed) {
+      await sleep(400);
+      if (!confirmed)
+        return fail("confirmation_required", "Confirm disconnecting this Cloudflare connection");
+      authorized.delete(profileId);
+    },
+    async OpenExternal() {
+      // The mock sign-in completes on its own, so nothing is opened.
+    },
   };
 
   const events: EventSource = {
@@ -706,6 +886,10 @@ export function createMockBackend(): { backend: Backend; events: EventSource } {
       return () => listeners.usage.delete(cb);
     },
     onFilesDropped: () => () => {},
+    onCloudflareSignIn: (cb) => {
+      listeners.cloudflare.add(cb);
+      return () => listeners.cloudflare.delete(cb);
+    },
   };
   return { backend, events };
 }

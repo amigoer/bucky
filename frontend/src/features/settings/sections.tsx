@@ -34,6 +34,7 @@ import { errorMessage } from "@/lib/errors";
 import { useNav } from "@/lib/nav";
 import { type Accent, type Language, type Theme, usePrefs, type View } from "@/lib/store";
 import pkg from "../../../package.json";
+import { CloudflareCard } from "./CloudflareCard";
 import { AccentPicker, Block, CodeBlock, Group, Row, ThemeCard } from "./parts";
 
 const RATES = [0, 1, 2, 5, 10, 20, 50];
@@ -261,6 +262,7 @@ export function IntegrationsSection() {
   const { t } = useTranslation();
   return (
     <>
+      <CloudflareCard />
       <Integration
         icon={<PlugIcon />}
         title="MCP"

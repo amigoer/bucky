@@ -47,10 +47,12 @@ import { useNav } from "@/lib/nav";
 import { keys, useProfiles } from "@/lib/queries";
 import { queryClient } from "@/lib/query";
 import { cn } from "@/lib/utils";
+import { CloudflareSignInPanel, CloudflareStatusBlock } from "./CloudflarePanel";
 
 const JURISDICTIONS = ["default", "eu", "fedramp"] as const;
 type Jurisdiction = (typeof JURISDICTIONS)[number];
 type Source = "keychain" | "environment";
+type Method = "cloudflare" | "manual";
 
 export function ConnectionDialog() {
   const value = useNav((s) => s.connection);
@@ -64,11 +66,15 @@ function ConnectionDialogInner({ id }: { id?: string }) {
   const forgetProfile = useNav((s) => s.forgetProfile);
   const { data: profiles = [] } = useProfiles();
   const existing = id ? profiles.find((profile) => profile.id === id) : undefined;
+  const cloudflareProfile = existing?.credentialSource === "cloudflare";
 
+  const [method, setMethod] = useState<Method>(
+    existing && !cloudflareProfile ? "manual" : "cloudflare",
+  );
   const [name, setName] = useState(existing?.name ?? "");
   const [accountId, setAccountId] = useState(existing?.accountId ?? "");
   const [source, setSource] = useState<Source>(
-    (existing?.credentialSource as Source) || "keychain",
+    (existing && !cloudflareProfile ? (existing.credentialSource as Source) : "") || "keychain",
   );
   const [accessKey, setAccessKey] = useState("");
   const [secret, setSecret] = useState("");
@@ -99,15 +105,16 @@ function ConnectionDialogInner({ id }: { id?: string }) {
     bucket: bucket.trim(),
     publicUrl: publicUrl.trim(),
     readOnly,
-    credentialSource: source,
+    credentialSource: cloudflareProfile ? "cloudflare" : source,
     createdAt: existing?.createdAt ?? "",
     updatedAt: existing?.updatedAt ?? "",
   });
 
   const wire = (): ProfileInput => ({
     profile: profile(),
-    accessKeyId: source === "keychain" ? accessKey : "",
-    secretAccessKey: source === "keychain" ? secret : "",
+    // A Cloudflare connection keeps the credentials the sign-in flow minted.
+    accessKeyId: !cloudflareProfile && source === "keychain" ? accessKey : "",
+    secretAccessKey: !cloudflareProfile && source === "keychain" ? secret : "",
   });
 
   const signature = JSON.stringify({
@@ -143,7 +150,7 @@ function ConnectionDialogInner({ id }: { id?: string }) {
         return t("connection.publicUrlError");
       }
     }
-    if (source === "keychain") {
+    if (!cloudflareProfile && source === "keychain") {
       const entered = accessKey || secret;
       const incomplete = !accessKey !== !secret;
       if (incomplete) return t("connection.keysBoth");
@@ -271,189 +278,223 @@ function ConnectionDialogInner({ id }: { id?: string }) {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5 py-4">
-              <Field label={t("connection.name")}>
-                <Input
-                  value={name}
-                  autoFocus
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Acme assets"
-                  maxLength={100}
-                />
-              </Field>
-
-              <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-3">
-                <Field label={t("connection.accountId")}>
-                  <Input
-                    value={accountId}
-                    onChange={(event) => setAccountId(event.target.value)}
-                    placeholder="0123456789abcdef0123456789abcdef"
-                    spellCheck={false}
-                    className="font-mono text-[12px]"
-                  />
-                </Field>
-                <Field label={t("connection.jurisdiction")}>
-                  <Select
-                    value={jurisdiction}
-                    onValueChange={(value) => setJurisdiction(value as Jurisdiction)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {JURISDICTIONS.map((value) => (
-                        <SelectItem key={value} value={value}>
-                          {value === "default" ? "Default" : value.toUpperCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-
-              <Field label={t("connection.credentialSource")}>
-                <Segmented<Source>
-                  value={source}
-                  onValueChange={setSource}
+              {!existing ? (
+                <Segmented<Method>
+                  value={method}
+                  onValueChange={setMethod}
                   options={[
-                    { value: "keychain", label: t("connection.keychain") },
-                    { value: "environment", label: t("connection.environment") },
+                    { value: "cloudflare", label: t("connection.cloudflare.signIn") },
+                    { value: "manual", label: t("connection.cloudflare.manual") },
                   ]}
                 />
-              </Field>
+              ) : null}
 
-              {source === "keychain" ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label={t("connection.accessKeyId")}>
-                    <Input
-                      value={accessKey}
-                      onChange={(event) => setAccessKey(event.target.value)}
-                      placeholder={existing ? t("connection.savedInKeychain") : ""}
-                      spellCheck={false}
-                      autoComplete="off"
-                      className="font-mono text-[12px]"
-                    />
-                  </Field>
-                  <Field label={t("connection.secretAccessKey")}>
-                    <Input
-                      type="password"
-                      value={secret}
-                      onChange={(event) => setSecret(event.target.value)}
-                      placeholder={existing ? t("connection.savedInKeychain") : ""}
-                      autoComplete="new-password"
-                      className="font-mono text-[12px]"
-                    />
-                  </Field>
-                </div>
+              {!existing && method === "cloudflare" ? (
+                <CloudflareSignInPanel
+                  onConnected={(saved) => {
+                    close(null);
+                    if (saved.bucket) {
+                      navigate({ profileId: saved.id, bucket: saved.bucket, prefix: "" });
+                    }
+                  }}
+                />
               ) : (
-                <div className="rounded-lg bg-field px-3 py-2 text-[11.5px] leading-relaxed text-muted-foreground">
-                  {t("connection.environmentHint")} <Kbd>BUCKY_R2_ACCESS_KEY_ID</Kbd>{" "}
-                  <Kbd>BUCKY_R2_SECRET_ACCESS_KEY</Kbd>
-                </div>
-              )}
+                <>
+                  <Field label={t("connection.name")}>
+                    <Input
+                      value={name}
+                      autoFocus
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder="Acme assets"
+                      maxLength={100}
+                    />
+                  </Field>
 
-              <Field label={t("connection.bucket")} hint={t("connection.bucketHint")}>
-                <Input
-                  value={bucket}
-                  onChange={(event) => setBucket(event.target.value)}
-                  placeholder={t("common.optional")}
-                  spellCheck={false}
-                />
-              </Field>
-
-              <Field label={t("connection.publicUrl")} hint={t("connection.publicUrlHint")}>
-                <Input
-                  value={publicUrl}
-                  onChange={(event) => setPublicUrl(event.target.value)}
-                  placeholder="https://cdn.example.com"
-                  spellCheck={false}
-                  className="font-mono text-[12px]"
-                />
-              </Field>
-
-              <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
-                <div className="flex min-w-0 flex-col">
-                  <Label htmlFor="read-only" className="text-[12.5px]">
-                    {t("connection.readOnly")}
-                  </Label>
-                  <span className="text-[11px] leading-relaxed text-muted-foreground">
-                    {t("connection.readOnlyHint")}
-                  </span>
-                </div>
-                <Switch
-                  id="read-only"
-                  checked={readOnly}
-                  onCheckedChange={setReadOnly}
-                  className="flex-none"
-                />
-              </div>
-
-              {shownTest ? (
-                <div
-                  className={cn(
-                    "flex items-start gap-2 rounded-lg px-3 py-2 text-[11.5px] leading-relaxed",
-                    shownTest.ok
-                      ? "bg-success-soft text-success-text"
-                      : "bg-destructive-soft text-destructive",
-                  )}
-                >
-                  {shownTest.ok ? (
-                    <CheckIcon className="mt-0.5 size-3.5 flex-none" />
-                  ) : (
-                    <AlertTriangleIcon className="mt-0.5 size-3.5 flex-none" />
-                  )}
-                  <div className="min-w-0">
-                    {shownTest.ok
-                      ? t("connection.testOk", { count: shownTest.buckets?.length ?? 0 })
-                      : t("connection.testFail", { message: shownTest.message ?? "" })}
-                    {shownTest.ok && shownTest.buckets && shownTest.buckets.length > 0 ? (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {shownTest.buckets.slice(0, 8).map((entry) => (
-                          <span
-                            key={entry.name}
-                            className="rounded bg-white/40 px-1.5 py-0.5 font-mono text-[10.5px]"
-                          >
-                            {entry.name}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
+                  <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-3">
+                    <Field label={t("connection.accountId")}>
+                      <Input
+                        value={accountId}
+                        disabled={cloudflareProfile}
+                        onChange={(event) => setAccountId(event.target.value)}
+                        placeholder="0123456789abcdef0123456789abcdef"
+                        spellCheck={false}
+                        className="font-mono text-[12px]"
+                      />
+                    </Field>
+                    <Field label={t("connection.jurisdiction")}>
+                      <Select
+                        value={jurisdiction}
+                        onValueChange={(value) => setJurisdiction(value as Jurisdiction)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {JURISDICTIONS.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {value === "default" ? "Default" : value.toUpperCase()}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
                   </div>
-                </div>
-              ) : null}
 
-              {error ? (
-                <p className="rounded-lg bg-destructive-soft px-3 py-2 text-[11.5px] text-destructive">
-                  {error}
-                </p>
-              ) : null}
+                  {cloudflareProfile ? (
+                    <CloudflareStatusBlock profile={existing} />
+                  ) : (
+                    <>
+                      <Field label={t("connection.credentialSource")}>
+                        <Segmented<Source>
+                          value={source}
+                          onValueChange={setSource}
+                          options={[
+                            { value: "keychain", label: t("connection.keychain") },
+                            { value: "environment", label: t("connection.environment") },
+                          ]}
+                        />
+                      </Field>
+
+                      {source === "keychain" ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field label={t("connection.accessKeyId")}>
+                            <Input
+                              value={accessKey}
+                              onChange={(event) => setAccessKey(event.target.value)}
+                              placeholder={existing ? t("connection.savedInKeychain") : ""}
+                              spellCheck={false}
+                              autoComplete="off"
+                              className="font-mono text-[12px]"
+                            />
+                          </Field>
+                          <Field label={t("connection.secretAccessKey")}>
+                            <Input
+                              type="password"
+                              value={secret}
+                              onChange={(event) => setSecret(event.target.value)}
+                              placeholder={existing ? t("connection.savedInKeychain") : ""}
+                              autoComplete="new-password"
+                              className="font-mono text-[12px]"
+                            />
+                          </Field>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg bg-field px-3 py-2 text-[11.5px] leading-relaxed text-muted-foreground">
+                          {t("connection.environmentHint")} <Kbd>BUCKY_R2_ACCESS_KEY_ID</Kbd>{" "}
+                          <Kbd>BUCKY_R2_SECRET_ACCESS_KEY</Kbd>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <Field label={t("connection.bucket")} hint={t("connection.bucketHint")}>
+                    <Input
+                      value={bucket}
+                      disabled={cloudflareProfile}
+                      onChange={(event) => setBucket(event.target.value)}
+                      placeholder={t("common.optional")}
+                      spellCheck={false}
+                    />
+                  </Field>
+
+                  <Field label={t("connection.publicUrl")} hint={t("connection.publicUrlHint")}>
+                    <Input
+                      value={publicUrl}
+                      onChange={(event) => setPublicUrl(event.target.value)}
+                      placeholder="https://cdn.example.com"
+                      spellCheck={false}
+                      className="font-mono text-[12px]"
+                    />
+                  </Field>
+
+                  <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+                    <div className="flex min-w-0 flex-col">
+                      <Label htmlFor="read-only" className="text-[12.5px]">
+                        {t("connection.readOnly")}
+                      </Label>
+                      <span className="text-[11px] leading-relaxed text-muted-foreground">
+                        {t("connection.readOnlyHint")}
+                      </span>
+                    </div>
+                    <Switch
+                      id="read-only"
+                      checked={readOnly}
+                      onCheckedChange={setReadOnly}
+                      className="flex-none"
+                    />
+                  </div>
+
+                  {shownTest ? (
+                    <div
+                      className={cn(
+                        "flex items-start gap-2 rounded-lg px-3 py-2 text-[11.5px] leading-relaxed",
+                        shownTest.ok
+                          ? "bg-success-soft text-success-text"
+                          : "bg-destructive-soft text-destructive",
+                      )}
+                    >
+                      {shownTest.ok ? (
+                        <CheckIcon className="mt-0.5 size-3.5 flex-none" />
+                      ) : (
+                        <AlertTriangleIcon className="mt-0.5 size-3.5 flex-none" />
+                      )}
+                      <div className="min-w-0">
+                        {shownTest.ok
+                          ? t("connection.testOk", { count: shownTest.buckets?.length ?? 0 })
+                          : t("connection.testFail", { message: shownTest.message ?? "" })}
+                        {shownTest.ok && shownTest.buckets && shownTest.buckets.length > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {shownTest.buckets.slice(0, 8).map((entry) => (
+                              <span
+                                key={entry.name}
+                                className="rounded bg-white/40 px-1.5 py-0.5 font-mono text-[10.5px]"
+                              >
+                                {entry.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {error ? (
+                    <p className="rounded-lg bg-destructive-soft px-3 py-2 text-[11.5px] text-destructive">
+                      {error}
+                    </p>
+                  ) : null}
+                </>
+              )}
             </div>
 
-            <div className="flex flex-none items-center gap-2 border-t bg-sidebar px-4 py-2.5">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={testing || saving}
-                onClick={() => void test()}
-              >
-                {testing ? <LoaderCircleIcon className="size-3.5 animate-spin" /> : null}
-                {testing ? t("connection.testing") : t("connection.test")}
-              </Button>
-              <span className="flex-1" />
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={saving}
-                onClick={() => close(null)}
-              >
-                {t("common.cancel")}
-              </Button>
-              <Button type="submit" size="sm" disabled={saving || testing}>
-                {saving ? <LoaderCircleIcon className="size-3.5 animate-spin" /> : null}
-                {t("common.save")}
-              </Button>
-            </div>
+            {!existing && method === "cloudflare" ? null : (
+              <div className="flex flex-none items-center gap-2 border-t bg-sidebar px-4 py-2.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={testing || saving}
+                  onClick={() => void test()}
+                >
+                  {testing ? <LoaderCircleIcon className="size-3.5 animate-spin" /> : null}
+                  {testing ? t("connection.testing") : t("connection.test")}
+                </Button>
+                <span className="flex-1" />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={saving}
+                  onClick={() => close(null)}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button type="submit" size="sm" disabled={saving || testing}>
+                  {saving ? <LoaderCircleIcon className="size-3.5 animate-spin" /> : null}
+                  {t("common.save")}
+                </Button>
+              </div>
+            )}
           </form>
         </div>
       </DialogContent>

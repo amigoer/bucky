@@ -24,6 +24,11 @@ export type FindRequest = core.FindRequest;
 export type FindResult = core.FindResult;
 export type ProfileInput = service.ProfileInput;
 export type TransferResult = service.TransferResult;
+export type CloudflareSignIn = service.CloudflareSignIn;
+export type CloudflareAccount = service.CloudflareAccount;
+export type CloudflareConnection = service.CloudflareConnection;
+export type CloudflareStatus = service.CloudflareStatus;
+export type Settings = service.Settings;
 export type DownloadResult = app.DownloadResult;
 export type UsageProgress = app.UsageProgress;
 
@@ -66,12 +71,24 @@ export interface Backend {
   PickDirectory(): Promise<string>;
   PickDownload(name: string): Promise<string>;
   CopyText(text: string): Promise<void>;
+  Settings(): Promise<Settings>;
+  SaveSettings(input: Settings): Promise<Settings>;
+  StartCloudflareSignIn(): Promise<CloudflareSignIn>;
+  CloudflareSignInStatus(sessionId: string): Promise<CloudflareSignIn>;
+  CancelCloudflareSignIn(sessionId: string): Promise<void>;
+  CloudflareBuckets(sessionId: string, accountId: string): Promise<Bucket[]>;
+  ConnectCloudflare(input: CloudflareConnection): Promise<Profile>;
+  CloudflareStatus(profileId: string): Promise<CloudflareStatus>;
+  ReauthorizeCloudflare(profileId: string): Promise<Profile>;
+  DisconnectCloudflare(profileId: string, confirmed: boolean): Promise<void>;
+  OpenExternal(url: string): Promise<void>;
 }
 
 export interface EventSource {
   onTransferUpdated(callback: (task: TransferTask) => void): () => void;
   onUsageProgress(callback: (progress: UsageProgress) => void): () => void;
   onFilesDropped(callback: (paths: string[]) => void): () => void;
+  onCloudflareSignIn(callback: (update: CloudflareSignIn) => void): () => void;
 }
 
 interface NativeWindow extends Window {
@@ -134,6 +151,20 @@ const desktop: Backend = {
   PickDirectory: () => DesktopService.PickDirectory(),
   PickDownload: (name) => DesktopService.PickDownload(name),
   CopyText: (text) => DesktopService.CopyText(text),
+  Settings: () => DesktopService.Settings(),
+  SaveSettings: (input) => DesktopService.SaveSettings(service.Settings.createFrom(input)),
+  StartCloudflareSignIn: () => DesktopService.StartCloudflareSignIn(),
+  CloudflareSignInStatus: (sessionId) => DesktopService.CloudflareSignInStatus(sessionId),
+  CancelCloudflareSignIn: (sessionId) => DesktopService.CancelCloudflareSignIn(sessionId),
+  CloudflareBuckets: (sessionId, accountId) =>
+    DesktopService.CloudflareBuckets(sessionId, accountId),
+  ConnectCloudflare: (input) =>
+    DesktopService.ConnectCloudflare(service.CloudflareConnection.createFrom(input)),
+  CloudflareStatus: (profileId) => DesktopService.CloudflareStatus(profileId),
+  ReauthorizeCloudflare: (profileId) => DesktopService.ReauthorizeCloudflare(profileId),
+  DisconnectCloudflare: (profileId, confirmed) =>
+    DesktopService.DisconnectCloudflare(profileId, confirmed),
+  OpenExternal: (url) => DesktopService.OpenExternal(url),
 };
 
 function payloadPaths(data: unknown): string[] {
@@ -156,6 +187,10 @@ const desktopEvents: EventSource = {
       const paths = payloadPaths(event.data);
       if (paths.length > 0) callback(paths);
     }),
+  onCloudflareSignIn: (callback) =>
+    Events.On("cloudflare:signin", (event) =>
+      callback(service.CloudflareSignIn.createFrom(event.data)),
+    ),
 };
 
 const unavailable = (): Promise<never> =>
@@ -167,6 +202,7 @@ const noEvents: EventSource = {
   onTransferUpdated: () => () => {},
   onUsageProgress: () => () => {},
   onFilesDropped: () => () => {},
+  onCloudflareSignIn: () => () => {},
 };
 
 export type BackendKind = "desktop" | "mock" | "none";
@@ -201,6 +237,7 @@ export const events: EventSource = {
   onTransferUpdated: (cb) => currentEvents.onTransferUpdated(cb),
   onUsageProgress: (cb) => currentEvents.onUsageProgress(cb),
   onFilesDropped: (cb) => currentEvents.onFilesDropped(cb),
+  onCloudflareSignIn: (cb) => currentEvents.onCloudflareSignIn(cb),
 };
 
 export const ref = (profileId: string, bucket: string, key: string): ObjectRef =>

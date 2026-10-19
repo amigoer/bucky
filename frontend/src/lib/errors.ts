@@ -60,6 +60,11 @@ const KNOWN = new Set([
   "cleanup_failed",
   "network",
   "desktop_required",
+  "permission_denied",
+  "rate_limited",
+  "unavailable",
+  "provider_error",
+  "browser",
 ]);
 
 /**
