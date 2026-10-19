@@ -424,6 +424,12 @@ function ConnectionDialogInner({ id }: { id?: string }) {
                     />
                   </div>
 
+                  {cloudflareProfile ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      {t("connection.cloudflare.scopeChangeHint")}
+                    </p>
+                  ) : null}
+
                   {shownTest ? (
                     <div
                       className={cn(

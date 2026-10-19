@@ -8,7 +8,7 @@ import {
   ShieldCheckIcon,
   UnplugIcon,
 } from "lucide-react";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -34,13 +34,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tip } from "@/components/ui/tooltip";
 import { copyText } from "@/lib/actions";
-import { api, type Bucket, type CloudflareStatus, events, type Profile } from "@/lib/api";
-import { CLOUDFLARE_CLIENTS_DOCS, initialSignInState, signInReducer } from "@/lib/cloudflare";
+import { api, type Bucket, type CloudflareStatus, type Profile } from "@/lib/api";
+import { CLOUDFLARE_CLIENTS_DOCS, includesCloudflareAccount } from "@/lib/cloudflare";
 import { errorCode, errorMessage } from "@/lib/errors";
 import i18n from "@/lib/i18n";
 import { useNav } from "@/lib/nav";
 import { keys } from "@/lib/queries";
 import { queryClient } from "@/lib/query";
+import { useCloudflareSignIn } from "@/lib/use-cloudflare-sign-in";
 import { cn } from "@/lib/utils";
 
 /** The new-connection flow: authorize in the browser, then pick a bucket. */
@@ -48,17 +49,20 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
   const { t } = useTranslation();
   const openSettings = useNav((s) => s.openSettings);
   const closeDialog = useNav((s) => s.openConnection);
-  const [state, dispatch] = useReducer(signInReducer, initialSignInState);
+  const {
+    state,
+    starting,
+    start: startSignIn,
+    cancel,
+    fail,
+    selectAccount,
+  } = useCloudflareSignIn();
+  const [connecting, setConnecting] = useState(false);
   const [name, setName] = useState("");
   const [bucket, setBucket] = useState("");
   const [readOnly, setReadOnly] = useState(false);
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [loadingBuckets, setLoadingBuckets] = useState(false);
-
-  useEffect(
-    () => events.onCloudflareSignIn((update) => dispatch({ type: "updated", session: update })),
-    [],
-  );
 
   useEffect(() => {
     if (state.phase !== "ready" || !state.accountId) return;
@@ -72,18 +76,17 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
         setBuckets(list);
         setBucket((current) => current || list[0]?.name || "");
       })
-      .catch((cause) => live && dispatch({ type: "failed", message: errorMessage(cause) }))
+      .catch((cause) => live && fail(errorMessage(cause)))
       .finally(() => live && setLoadingBuckets(false));
     return () => {
       live = false;
     };
-  }, [state.phase, state.sessionId, state.accountId]);
+  }, [state.phase, state.sessionId, state.accountId, fail]);
 
   const start = async () => {
-    dispatch({ type: "reset" });
+    setBucket("");
     try {
-      const session = await api.StartCloudflareSignIn();
-      dispatch({ type: "started", session });
+      await startSignIn();
     } catch (cause) {
       if (errorCode(cause) === "configuration") {
         // The connection cannot start without a client ID; take the user there.
@@ -91,18 +94,12 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
         openSettings("integrations");
         return;
       }
-      dispatch({ type: "failed", message: errorMessage(cause) });
     }
   };
 
-  const cancel = async () => {
-    if (state.sessionId) await api.CancelCloudflareSignIn(state.sessionId).catch(() => {});
-    dispatch({ type: "reset" });
-  };
-
   const connect = async () => {
-    if (!name.trim() || !bucket) return;
-    dispatch({ type: "connecting" });
+    if (connecting || !name.trim() || !bucket) return;
+    setConnecting(true);
     try {
       const saved = await api.ConnectCloudflare({
         sessionId: state.sessionId,
@@ -118,7 +115,9 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
       toast.success(t("connection.cloudflare.connected", { bucket }));
       onConnected(saved);
     } catch (cause) {
-      dispatch({ type: "failed", message: errorMessage(cause) });
+      fail(errorMessage(cause));
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -130,7 +129,7 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
             {t("connection.cloudflare.signInDesc")}
           </div>
           <div>
-            <Button type="button" size="lg" onClick={() => void start()}>
+            <Button type="button" size="lg" disabled={starting} onClick={() => void start()}>
               <KeyRoundIcon className="size-3.5" />
               {t("connection.cloudflare.signIn")}
             </Button>
@@ -169,14 +168,19 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
               {t("common.copy")}
             </Button>
             <span className="flex-1" />
-            <Button type="button" variant="ghost" size="sm" onClick={() => void cancel()}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void cancel().catch(() => {})}
+            >
               {t("connection.cloudflare.cancel")}
             </Button>
           </div>
         </div>
       ) : null}
 
-      {state.phase === "ready" || state.phase === "connecting" ? (
+      {state.phase === "ready" || connecting ? (
         <>
           {state.accounts.length > 1 ? (
             <Field label={t("connection.cloudflare.account")}>
@@ -184,7 +188,7 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
                 value={state.accountId}
                 onValueChange={(value) => {
                   setBucket("");
-                  dispatch({ type: "account", accountId: value });
+                  selectAccount(value);
                 }}
               >
                 <SelectTrigger>
@@ -261,15 +265,15 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
             <Button
               type="button"
               size="lg"
-              disabled={state.phase === "connecting" || !name.trim() || !bucket}
+              disabled={connecting || !name.trim() || !bucket}
               onClick={() => void connect()}
             >
-              {state.phase === "connecting" ? (
+              {connecting ? (
                 <LoaderCircleIcon className="size-3.5 animate-spin" />
               ) : (
                 <ShieldCheckIcon className="size-3.5" />
               )}
-              {state.phase === "connecting"
+              {connecting
                 ? t("connection.cloudflare.connecting")
                 : t("connection.cloudflare.connect")}
             </Button>
@@ -278,8 +282,8 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
               type="button"
               variant="ghost"
               size="sm"
-              disabled={state.phase === "connecting"}
-              onClick={() => void cancel()}
+              disabled={connecting}
+              onClick={() => void cancel().catch(() => {})}
             >
               {t("connection.cloudflare.cancel")}
             </Button>
@@ -297,7 +301,13 @@ export function CloudflareSignInPanel({ onConnected }: { onConnected: (p: Profil
             <span className="min-w-0">{state.error}</span>
           </p>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => void start()}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={starting}
+              onClick={() => void start()}
+            >
               {t("connection.cloudflare.retry")}
             </Button>
             <a
@@ -321,12 +331,18 @@ export function CloudflareStatusBlock({ profile }: { profile: Profile }) {
   const [status, setStatus] = useState<CloudflareStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [signIn, dispatch] = useReducer(signInReducer, initialSignInState);
-  const [signingIn, setSigningIn] = useState(false);
-  // The sign-in events arrive asynchronously; refs keep the effect stable.
+  const {
+    state: signIn,
+    starting,
+    start: startSignIn,
+    cancel: cancelSignIn,
+    fail,
+    isCurrent,
+  } = useCloudflareSignIn();
+  const signingIn = starting || signIn.phase === "waiting" || signIn.phase === "ready";
   const profileRef = useRef(profile);
   profileRef.current = profile;
-  const signingRef = useRef(false);
+  const connectingSession = useRef("");
 
   const load = async () => {
     try {
@@ -347,68 +363,38 @@ export function CloudflareStatusBlock({ profile }: { profile: Profile }) {
     };
   }, [profile.id]);
 
-  useEffect(
-    () => events.onCloudflareSignIn((update) => dispatch({ type: "updated", session: update })),
-    [],
-  );
+  const signInAgain = () => startSignIn().catch(() => {});
 
-  const signInAgain = async () => {
-    signingRef.current = true;
-    setSigningIn(true);
-    dispatch({ type: "reset" });
-    try {
-      const session = await api.StartCloudflareSignIn();
-      dispatch({ type: "started", session });
-    } catch (cause) {
-      signingRef.current = false;
-      setSigningIn(false);
-      toast.error(errorMessage(cause));
-    }
-  };
-
-  const cancelSignIn = async () => {
-    if (signIn.sessionId) await api.CancelCloudflareSignIn(signIn.sessionId).catch(() => {});
-    signingRef.current = false;
-    setSigningIn(false);
-    dispatch({ type: "reset" });
-  };
-
-  // A fresh browser sign-in replaces the stored authorization in place.
   useEffect(() => {
-    if (signIn.phase !== "ready" || !signingRef.current) return;
-    let live = true;
+    if (signIn.phase !== "ready" || connectingSession.current === signIn.sessionId) return;
     const current = profileRef.current;
-    const accountId = signIn.accounts.some((a) => a.id === current.accountId)
-      ? current.accountId
-      : signIn.accountId;
+    if (!includesCloudflareAccount(signIn.accounts, current.accountId)) {
+      fail(i18n.t("connection.cloudflare.accountMismatch"));
+      return;
+    }
+    connectingSession.current = signIn.sessionId;
     api
       .ConnectCloudflare({
         sessionId: signIn.sessionId,
         profileId: current.id,
         name: current.name,
-        accountId,
+        accountId: current.accountId,
         bucket: current.bucket,
         jurisdiction: current.jurisdiction,
         publicUrl: current.publicUrl,
         readOnly: current.readOnly,
       })
       .then(async () => {
-        if (!live) return;
         await queryClient.invalidateQueries({ queryKey: keys.profiles });
+        if (!isCurrent(signIn.sessionId)) return;
         setStatus(await api.CloudflareStatus(current.id).catch(() => null));
         toast.success(i18n.t("connection.cloudflare.reauthorized"));
+        await cancelSignIn();
       })
-      .catch((cause) => live && toast.error(errorMessage(cause)))
-      .finally(() => {
-        if (!live) return;
-        signingRef.current = false;
-        setSigningIn(false);
-        dispatch({ type: "reset" });
+      .catch((cause) => {
+        if (isCurrent(signIn.sessionId)) fail(errorMessage(cause));
       });
-    return () => {
-      live = false;
-    };
-  }, [signIn.phase, signIn.sessionId, signIn.accountId, signIn.accounts]);
+  }, [signIn.phase, signIn.sessionId, signIn.accounts, fail, cancelSignIn, isCurrent]);
 
   const reauthorize = async () => {
     setBusy(true);
@@ -513,12 +499,26 @@ export function CloudflareStatusBlock({ profile }: { profile: Profile }) {
       {signingIn ? (
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <Spinner />
-          {t("connection.cloudflare.waiting")}
+          {signIn.phase === "ready"
+            ? t("connection.cloudflare.connecting")
+            : t("connection.cloudflare.waiting")}
           <span className="flex-1" />
-          <Button type="button" variant="ghost" size="sm" onClick={() => void cancelSignIn()}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={signIn.phase === "ready"}
+            onClick={() => void cancelSignIn().catch(() => {})}
+          >
             {t("connection.cloudflare.cancel")}
           </Button>
         </div>
+      ) : null}
+
+      {signIn.phase === "error" ? (
+        <p role="alert" className="text-[11.5px] text-destructive">
+          {signIn.error}
+        </p>
       ) : null}
 
       <AlertDialog open={confirming} onOpenChange={setConfirming}>

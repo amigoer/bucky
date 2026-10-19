@@ -43,6 +43,71 @@ export function normalizeScopes(values: string[]): string[] {
   return out;
 }
 
+type SignInBackend = {
+  StartCloudflareSignIn(): Promise<CloudflareSignIn>;
+  CancelCloudflareSignIn(sessionId: string): Promise<void>;
+};
+
+export class SignInSession {
+  sessionId = "";
+  private generation = 0;
+  private pending: Promise<CloudflareSignIn | null> | null = null;
+  private releasing: Promise<void> | null = null;
+
+  constructor(private readonly backend: SignInBackend) {}
+
+  start(): Promise<CloudflareSignIn | null> {
+    if (this.pending) return this.pending;
+    const generation = ++this.generation;
+    const pending = this.begin(generation).finally(() => {
+      if (this.pending === pending) this.pending = null;
+    });
+    this.pending = pending;
+    return pending;
+  }
+
+  private async begin(generation: number): Promise<CloudflareSignIn | null> {
+    await this.release();
+    if (generation !== this.generation) return null;
+    const session = await this.backend.StartCloudflareSignIn();
+    if (generation !== this.generation) {
+      await this.backend.CancelCloudflareSignIn(session.sessionId);
+      return null;
+    }
+    this.sessionId = session.sessionId;
+    return session;
+  }
+
+  async cancel(): Promise<void> {
+    ++this.generation;
+    await this.release();
+  }
+
+  private async release(): Promise<void> {
+    if (this.releasing) await this.releasing;
+    if (!this.sessionId) return;
+    const id = this.sessionId;
+    this.sessionId = "";
+    const pending = this.backend.CancelCloudflareSignIn(id).catch((cause) => {
+      this.sessionId = id;
+      throw cause;
+    });
+    this.releasing = pending;
+    try {
+      await pending;
+    } finally {
+      this.releasing = null;
+    }
+  }
+}
+
+export function includesCloudflareAccount(
+  accounts: CloudflareSignIn["accounts"],
+  accountId: string,
+): boolean {
+  return accounts.some((account) => account.id === accountId);
+}
+
 export type SignInPhase = "idle" | "waiting" | "ready" | "connecting" | "error";
 
 export interface SignInState {
@@ -75,14 +140,15 @@ export type SignInEvent =
 export function signInReducer(state: SignInState, event: SignInEvent): SignInState {
   switch (event.type) {
     case "started":
-      return {
-        phase: "waiting",
-        sessionId: event.session.sessionId,
-        authUrl: event.session.authUrl,
-        accounts: [],
-        accountId: "",
-        error: null,
-      };
+      return signInReducer(
+        {
+          ...initialSignInState,
+          phase: "waiting",
+          sessionId: event.session.sessionId,
+          authUrl: event.session.authUrl,
+        },
+        { type: "updated", session: event.session },
+      );
     case "updated": {
       if (event.session.sessionId !== state.sessionId) return state;
       switch (event.session.state) {

@@ -757,6 +757,9 @@ export function createMockBackend(): { backend: Backend; events: EventSource } {
           "configuration",
           "Add the Cloudflare OAuth client ID in settings before signing in",
         );
+      if ([...cloudflareSessions.values()].some((session) => !session.accountId))
+        return fail("conflict", "A Cloudflare sign-in is already waiting for authorization");
+      cloudflareSessions.clear();
       const sessionId = id();
       const authUrl = `https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=${encodeURIComponent(settings.cloudflareClientId)}&redirect_uri=${encodeURIComponent(settings.cloudflareRedirectUri)}&state=${id()}&code_challenge=mock&code_challenge_method=S256`;
       const timer = window.setTimeout(() => {
@@ -825,10 +828,19 @@ export function createMockBackend(): { backend: Backend; events: EventSource } {
       await sleep(1200);
       const session = cloudflareSessions.get(input.sessionId);
       if (!session) return fail("not_found", "Start the Cloudflare sign-in again");
+      if (!session.accountId)
+        return fail("conflict", "The Cloudflare authorization is not complete yet");
       if (!input.bucket) return fail("invalid_argument", "Select a bucket");
+      const previous = input.profileId ? profile(input.profileId) : undefined;
+      if (input.profileId && !previous) return fail("not_found", "The connection does not exist");
+      if (previous && previous.accountId !== input.accountId)
+        return fail(
+          "invalid_argument",
+          "Sign in with the Cloudflare account used by this connection",
+        );
       cloudflareSessions.delete(input.sessionId);
       const p = core.Profile.createFrom({
-        id: id(),
+        id: previous?.id ?? id(),
         name: input.name,
         providerType: "r2",
         accountId: input.accountId,
@@ -837,11 +849,12 @@ export function createMockBackend(): { backend: Backend; events: EventSource } {
         publicUrl: input.publicUrl,
         readOnly: input.readOnly,
         credentialSource: "cloudflare",
-        createdAt: new Date().toISOString(),
+        createdAt: previous?.createdAt ?? new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
       if (!store.has(`${p.id}/${p.bucket}`)) store.set(`${p.id}/${p.bucket}`, new Map());
-      profiles.push(p);
+      if (previous) profiles[profiles.findIndex((entry) => entry.id === previous.id)] = p;
+      else profiles.push(p);
       authorized.add(p.id);
       return p;
     },
@@ -862,7 +875,12 @@ export function createMockBackend(): { backend: Backend; events: EventSource } {
       if (!p) return fail("not_found", "The connection does not exist");
       if (p.credentialSource !== "cloudflare")
         return fail("unsupported", "This connection does not use Cloudflare sign-in");
-      authorized.add(profileId);
+      if (!authorized.has(profileId))
+        return fail(
+          "credentials_unavailable",
+          "Sign in to Cloudflare again to authorize this connection",
+        );
+      p.updatedAt = new Date().toISOString();
       return core.Profile.createFrom({ ...p });
     },
     async DisconnectCloudflare(profileId, confirmed) {

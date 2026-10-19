@@ -315,6 +315,10 @@ const en = {
       noBuckets: "This account has no R2 buckets.",
       readOnly: "Read-only connection",
       readOnlyHint: "Creates a read-only R2 token: browse, preview, download and share.",
+      scopeChangeHint:
+        "Saving a permission or jurisdiction change replaces the R2 token after verification.",
+      accountMismatch:
+        "Sign in with the Cloudflare account used by this connection. The connection has not changed.",
       connect: "Connect",
       connecting: "Connecting…",
       retry: "Try again",
@@ -883,6 +887,8 @@ const zh: Messages = {
       noBuckets: "该账号下没有 R2 存储桶。",
       readOnly: "只读连接",
       readOnlyHint: "创建只读 R2 令牌：可浏览、预览、下载和分享。",
+      scopeChangeHint: "修改权限或地域管辖后保存，Bucky 会验证新令牌并替换原 R2 令牌。",
+      accountMismatch: "请使用此连接原本的 Cloudflare 账号登录，当前连接没有更改。",
       connect: "连接",
       connecting: "正在连接…",
       retry: "重试",
