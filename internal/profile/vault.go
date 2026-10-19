@@ -15,6 +15,14 @@ type Vault interface {
 	Delete(string) error
 }
 
+// Secrets keeps single opaque values, such as a Cloudflare refresh token, next
+// to the credentials they belong to.
+type Secrets interface {
+	GetSecret(string) (string, error)
+	SetSecret(string, string) error
+	DeleteSecret(string) error
+}
+
 type Keychain struct{}
 
 func (Keychain) Get(id string) (core.Credentials, error) {
@@ -43,6 +51,28 @@ func (Keychain) Set(id string, creds core.Credentials) error {
 func (Keychain) Delete(id string) error {
 	if err := keyring.Delete("Bucky", id); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return core.NewError("credentials_unavailable", "Cannot remove credentials from the system keychain")
+	}
+	return nil
+}
+
+func (Keychain) GetSecret(key string) (string, error) {
+	value, err := keyring.Get("Bucky", key)
+	if err != nil {
+		return "", core.NewError("credentials_unavailable", "Cannot read the saved Cloudflare authorization")
+	}
+	return value, nil
+}
+
+func (Keychain) SetSecret(key, value string) error {
+	if err := keyring.Set("Bucky", key, value); err != nil {
+		return core.NewError("credentials_unavailable", "Cannot save the Cloudflare authorization to the system keychain")
+	}
+	return nil
+}
+
+func (Keychain) DeleteSecret(key string) error {
+	if err := keyring.Delete("Bucky", key); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		return core.NewError("credentials_unavailable", "Cannot remove the Cloudflare authorization from the system keychain")
 	}
 	return nil
 }

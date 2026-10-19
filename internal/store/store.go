@@ -50,6 +50,7 @@ func Open(ctx context.Context, dir string) (*Store, error) {
 		CREATE TABLE IF NOT EXISTS transfer_parts (task_id TEXT NOT NULL REFERENCES transfers(id) ON DELETE CASCADE, number INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(task_id, number));
 		CREATE TABLE IF NOT EXISTS operation_plans (id TEXT PRIMARY KEY, status TEXT NOT NULL, data TEXT NOT NULL);
 		CREATE TABLE IF NOT EXISTS usage_cache (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+		CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, data TEXT NOT NULL);
 	`)
 	if err != nil {
 		_ = db.Close()
@@ -213,6 +214,16 @@ func (s *Store) Usage(ctx context.Context, id string) (core.Usage, error) {
 	var u core.Usage
 	err := s.get(ctx, "SELECT data FROM usage_cache WHERE id=?", id, &u)
 	return u, err
+}
+
+// SaveSetting stores non-secret application settings; an absent key means the
+// caller should fall back to its defaults.
+func (s *Store) SaveSetting(ctx context.Context, key string, value any) error {
+	return s.put(ctx, "INSERT INTO settings(key,data) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET data=excluded.data", key, value)
+}
+
+func (s *Store) Setting(ctx context.Context, key string, value any) error {
+	return s.get(ctx, "SELECT data FROM settings WHERE key=?", key, value)
 }
 
 // Recover is called only while the process owns the write lock.

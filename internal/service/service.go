@@ -10,10 +10,12 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/amigoer/bucky/internal/core"
+	"github.com/amigoer/bucky/internal/drivers/cloudflare"
 	"github.com/amigoer/bucky/internal/drivers/providers"
 	"github.com/amigoer/bucky/internal/profile"
 	"github.com/amigoer/bucky/internal/store"
@@ -21,16 +23,27 @@ import (
 )
 
 type Options struct {
-	Dir     string
-	Vault   profile.Vault
-	Factory core.Factory
+	Dir        string
+	Vault      profile.Vault
+	Secrets    profile.Secrets
+	Factory    core.Factory
+	Cloudflare func(cloudflare.Config) (*cloudflare.Client, error)
 }
 
 type Service struct {
 	DB        *store.Store
 	Transfers *transfer.Engine
-	vault     profile.Vault
-	factory   core.Factory
+
+	// OnCloudflareSignIn reports sign-in progress to the entry adapter.
+	OnCloudflareSignIn func(CloudflareSignIn)
+
+	vault      profile.Vault
+	secrets    profile.Secrets
+	factory    core.Factory
+	cloudflare func(cloudflare.Config) (*cloudflare.Client, error)
+
+	signInMu sync.Mutex
+	signIns  map[string]*signInSession
 }
 
 type ProfileInput struct {
@@ -55,20 +68,49 @@ func New(ctx context.Context, opts Options) (*Service, error) {
 	if opts.Vault == nil {
 		opts.Vault = profile.Keychain{}
 	}
+	if opts.Secrets == nil {
+		opts.Secrets = profile.Keychain{}
+	}
 	if opts.Factory == nil {
 		opts.Factory = providers.New
+	}
+	if opts.Cloudflare == nil {
+		opts.Cloudflare = cloudflare.New
 	}
 	db, err := store.Open(ctx, opts.Dir)
 	if err != nil {
 		return nil, err
 	}
-	s := &Service{DB: db, vault: opts.Vault, factory: opts.Factory}
+	s := &Service{
+		DB:         db,
+		vault:      opts.Vault,
+		secrets:    opts.Secrets,
+		factory:    opts.Factory,
+		cloudflare: opts.Cloudflare,
+		signIns:    map[string]*signInSession{},
+	}
 	s.Transfers = transfer.New(db, s.resolve)
 	s.Transfers.Writable = s.checkWritable
 	return s, nil
 }
 
 func (s *Service) Close() error {
+	s.signInMu.Lock()
+	sessions := make([]*signInSession, 0, len(s.signIns))
+	for _, session := range s.signIns {
+		sessions = append(sessions, session)
+	}
+	s.signIns = map[string]*signInSession{}
+	s.signInMu.Unlock()
+	for _, session := range sessions {
+		session.mu.Lock()
+		cancel := session.cancel
+		session.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+		_ = session.flow.Close()
+	}
 	err := s.Transfers.Close()
 	dbErr := s.DB.Close()
 	if err != nil {
@@ -112,7 +154,8 @@ func (s *Service) SaveProfile(ctx context.Context, input ProfileInput) (core.Pro
 			p.CreatedAt = old.CreatedAt
 		}
 		p.UpdatedAt = now
-		if p.CredentialSource == "keychain" {
+		switch p.CredentialSource {
+		case "keychain":
 			if input.AccessKeyID != "" || input.SecretAccessKey != "" {
 				if input.AccessKeyID == "" || input.SecretAccessKey == "" {
 					return core.Invalid("Both R2 S3 access key fields are required")
@@ -121,6 +164,14 @@ func (s *Service) SaveProfile(ctx context.Context, input ProfileInput) (core.Pro
 					return err
 				}
 			} else if _, err := s.vault.Get(p.ID); err != nil {
+				return err
+			}
+		case "cloudflare":
+			// The minted credentials are written by the sign-in flow only.
+			if input.AccessKeyID != "" || input.SecretAccessKey != "" {
+				return core.Invalid("A Cloudflare sign-in connection stores no S3 keys")
+			}
+			if _, err := s.vault.Get(p.ID); err != nil {
 				return err
 			}
 		}
@@ -200,8 +251,15 @@ func normalizeProfile(p core.Profile) (core.Profile, error) {
 	if p.CredentialSource == "" {
 		p.CredentialSource = "keychain"
 	}
-	if p.CredentialSource != "keychain" && p.CredentialSource != "environment" {
-		return p, core.Invalid("Credentials must come from the system keychain or this process environment")
+	switch p.CredentialSource {
+	case "keychain", "environment":
+	case "cloudflare":
+		// A Cloudflare sign-in mints a token scoped to a single bucket.
+		if p.Bucket == "" {
+			return p, core.Invalid("A Cloudflare sign-in connection is scoped to one bucket")
+		}
+	default:
+		return p, core.Invalid("Credentials must come from the system keychain, this process environment or a Cloudflare sign-in")
 	}
 	if p.PublicURL != "" {
 		u, err := url.Parse(p.PublicURL)
@@ -231,8 +289,13 @@ func (s *Service) RemoveProfile(ctx context.Context, id string, confirmed bool) 
 				return core.NewError("conflict", "Cancel unfinished transfers before removing this connection")
 			}
 		}
-		if p.CredentialSource == "keychain" {
+		if p.CredentialSource == "keychain" || p.CredentialSource == "cloudflare" {
 			if err := s.vault.Delete(id); err != nil {
+				return err
+			}
+		}
+		if p.CredentialSource == "cloudflare" {
+			if err := s.secrets.DeleteSecret(cloudflareSecret + id); err != nil {
 				return err
 			}
 		}
