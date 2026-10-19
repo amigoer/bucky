@@ -53,10 +53,8 @@ export function Sidebar() {
             isMac ? "pl-[82px]" : "pl-4",
           )}
         >
+          <SidebarToggle />
           <Brand />
-          <div className="ml-auto">
-            <SidebarToggle />
-          </div>
         </div>
 
         <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pt-1.5 pb-2.5">

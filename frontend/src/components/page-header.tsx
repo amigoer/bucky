@@ -39,7 +39,7 @@ export function PageHeader({
     <header
       className={cn(
         "drag-region relative z-10 flex h-[var(--titlebar-height)] flex-none items-center gap-1.5 border-b bg-background pr-3.5 pl-3",
-        hidden && isMac && "pl-[78px]",
+        hidden && (isMac ? "pl-[82px]" : "pl-4"),
         className,
       )}
     >
