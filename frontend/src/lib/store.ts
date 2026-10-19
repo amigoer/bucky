@@ -3,12 +3,14 @@ import { persist } from "zustand/middleware";
 import type { SortKey } from "./entries";
 
 export type Theme = "light" | "dark" | "system";
+export type Accent = "blue" | "indigo" | "purple" | "pink" | "orange" | "green" | "graphite";
 export type Language = "en" | "zh";
 export type View = "list" | "grid" | "columns";
 export type CopyFormat = "markdown" | "url";
 
 interface Prefs {
   theme: Theme;
+  accent: Accent;
   language: Language;
   view: View;
   sortKey: SortKey;
@@ -39,6 +41,7 @@ export const usePrefs = create<Prefs>()(
   persist(
     (set) => ({
       theme: "system",
+      accent: "blue",
       language: systemLanguage(),
       view: "list",
       sortKey: "name",

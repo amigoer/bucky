@@ -22,6 +22,7 @@ import i18n from "@/lib/i18n";
 import { useNav } from "@/lib/nav";
 import { useTransferEvents } from "@/lib/queries";
 import { usePrefs } from "@/lib/store";
+import { applyAppearance } from "@/lib/theme";
 
 export default function App() {
   const { t } = useTranslation();
@@ -30,6 +31,7 @@ export default function App() {
   const page = useNav((s) => s.page);
   const location = useNav((s) => s.location);
   const theme = usePrefs((s) => s.theme);
+  const accent = usePrefs((s) => s.accent);
   const language = usePrefs((s) => s.language);
   const rate = usePrefs((s) => s.rate);
   const concurrency = usePrefs((s) => s.concurrency);
@@ -48,10 +50,7 @@ export default function App() {
   }, []);
 
   const dark = theme === "dark" || (theme === "system" && systemDark);
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    document.documentElement.style.colorScheme = dark ? "dark" : "light";
-  }, [dark]);
+  useEffect(() => applyAppearance(dark, accent), [dark, accent]);
 
   useEffect(() => {
     void i18n.changeLanguage(language);

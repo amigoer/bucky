@@ -5,7 +5,7 @@ export function ConnTile({ size = 20, className }: { size?: number; className?: 
   return (
     <span
       className={cn(
-        "grid flex-none place-items-center rounded-[6px] bg-[oklch(0.56_0.08_55)] font-mono font-bold tracking-[-0.02em] text-white",
+        "grid flex-none place-items-center rounded-[6px] bg-[oklch(0.68_0.17_50)] font-mono font-bold tracking-[-0.02em] text-white",
         className,
       )}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}

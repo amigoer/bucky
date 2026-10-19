@@ -165,5 +165,5 @@ export const CHART_COLOR: Record<Kind, string> = {
   archive: "oklch(0.55 0.03 262)",
   font: "oklch(0.66 0.08 30)",
   other: "oklch(0.72 0.02 262)",
-  folder: "oklch(0.7 0.08 70)",
+  folder: "var(--folder-stroke)",
 };

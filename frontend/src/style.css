@@ -31,13 +31,16 @@
   --accent: rgb(0 0 0 / 0.06);
   --accent-foreground: #1d1d1f;
 
-  --primary: oklch(0.6 0.15 42);
-  --primary-text: oklch(0.5 0.15 40);
-  --primary-soft: oklch(0.6 0.15 42 / 0.12);
-  --primary-tint: oklch(0.6 0.15 42 / 0.06);
-  --primary-line: oklch(0.6 0.15 42 / 0.22);
+  /* Overridden inline by applyAppearance in src/lib/theme.ts. */
+  --brand-hue: 255;
+  --brand-chroma: 0.165;
+  --primary: oklch(0.56 var(--brand-chroma) var(--brand-hue));
+  --primary-text: oklch(0.5 var(--brand-chroma) var(--brand-hue));
+  --primary-soft: oklch(0.56 var(--brand-chroma) var(--brand-hue) / 0.13);
+  --primary-tint: oklch(0.56 var(--brand-chroma) var(--brand-hue) / 0.06);
+  --primary-line: oklch(0.56 var(--brand-chroma) var(--brand-hue) / 0.3);
   --primary-foreground: #ffffff;
-  --ring: oklch(0.6 0.15 42);
+  --ring: var(--primary);
 
   --destructive: oklch(0.56 0.2 27);
   --destructive-soft: oklch(0.58 0.2 27 / 0.1);
@@ -60,8 +63,9 @@
   --sh-card: 0 0 0 0.5px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.05);
   --sh-card-hover: 0 0 0 0.5px rgb(0 0 0 / 0.12), 0 4px 12px rgb(0 0 0 / 0.08);
 
-  --kind-folder-bg: oklch(0.94 0.035 70);
-  --kind-folder-fg: oklch(0.56 0.09 70);
+  /* Folders follow the accent, like Finder. */
+  --kind-folder-bg: oklch(0.95 calc(var(--brand-chroma) * 0.22) var(--brand-hue));
+  --kind-folder-fg: oklch(0.55 calc(var(--brand-chroma) * 0.65) var(--brand-hue));
   --kind-image-bg: oklch(0.95 0.03 42);
   --kind-image-fg: oklch(0.52 0.12 42);
   --kind-video-bg: oklch(0.95 0.03 320);
@@ -82,8 +86,8 @@
   --kind-archive-fg: oklch(0.5 0.01 262);
   --kind-other-bg: oklch(0.95 0.005 262);
   --kind-other-fg: oklch(0.5 0.01 262);
-  --folder-fill: oklch(0.86 0.07 70);
-  --folder-stroke: oklch(0.62 0.09 60);
+  --folder-fill: oklch(0.8 calc(var(--brand-chroma) * 0.55) var(--brand-hue));
+  --folder-stroke: oklch(0.63 calc(var(--brand-chroma) * 0.65) var(--brand-hue));
 
   color-scheme: light;
 }
@@ -110,13 +114,13 @@
   --accent: rgb(255 255 255 / 0.08);
   --accent-foreground: #ececee;
 
-  --primary: oklch(0.7 0.14 45);
-  --primary-text: oklch(0.79 0.11 50);
-  --primary-soft: oklch(0.7 0.14 45 / 0.2);
-  --primary-tint: oklch(0.7 0.14 45 / 0.08);
-  --primary-line: oklch(0.7 0.14 45 / 0.35);
-  --primary-foreground: #1f140e;
-  --ring: oklch(0.7 0.14 45);
+  --primary: oklch(0.63 var(--brand-chroma) var(--brand-hue));
+  --primary-text: oklch(0.8 calc(var(--brand-chroma) * 0.7) var(--brand-hue));
+  --primary-soft: oklch(0.63 var(--brand-chroma) var(--brand-hue) / 0.24);
+  --primary-tint: oklch(0.63 var(--brand-chroma) var(--brand-hue) / 0.1);
+  --primary-line: oklch(0.63 var(--brand-chroma) var(--brand-hue) / 0.42);
+  --primary-foreground: #ffffff;
+  --ring: var(--primary);
 
   --destructive: oklch(0.72 0.16 27);
   --destructive-soft: oklch(0.7 0.17 27 / 0.16);
@@ -136,8 +140,8 @@
   --sh-card: 0 0 0 0.5px rgb(255 255 255 / 0.15), 0 1px 2px rgb(0 0 0 / 0.2);
   --sh-card-hover: 0 0 0 0.5px rgb(255 255 255 / 0.15), 0 4px 12px rgb(0 0 0 / 0.3);
 
-  --kind-folder-bg: oklch(0.36 0.04 70);
-  --kind-folder-fg: oklch(0.82 0.08 70);
+  --kind-folder-bg: oklch(0.34 calc(var(--brand-chroma) * 0.25) var(--brand-hue));
+  --kind-folder-fg: oklch(0.8 calc(var(--brand-chroma) * 0.55) var(--brand-hue));
   --kind-image-bg: oklch(0.33 0.03 42);
   --kind-image-fg: oklch(0.8 0.12 42);
   --kind-video-bg: oklch(0.33 0.03 320);
@@ -158,8 +162,8 @@
   --kind-archive-fg: oklch(0.78 0.02 262);
   --kind-other-bg: oklch(0.33 0.01 262);
   --kind-other-fg: oklch(0.78 0.02 262);
-  --folder-fill: oklch(0.5 0.06 65);
-  --folder-stroke: oklch(0.72 0.07 65);
+  --folder-fill: oklch(0.55 calc(var(--brand-chroma) * 0.5) var(--brand-hue));
+  --folder-stroke: oklch(0.72 calc(var(--brand-chroma) * 0.55) var(--brand-hue));
 
   color-scheme: dark;
 }

@@ -9,6 +9,13 @@ export interface Location {
 }
 
 export type Page = "browse" | "transfers" | "usage" | "settings";
+export type SettingsSection =
+  | "general"
+  | "appearance"
+  | "transfers"
+  | "integrations"
+  | "shortcuts"
+  | "about";
 export type PlanOperation = "delete" | "copy" | "move" | "upload";
 
 export interface PlanDraft {
@@ -32,6 +39,7 @@ interface NavState {
   backStack: Location[];
   forwardStack: Location[];
   page: Page;
+  settingsSection: SettingsSection;
   selection: string[];
   anchor: string | null;
   query: string;
@@ -49,6 +57,7 @@ interface NavState {
   goBack: () => void;
   goForward: () => void;
   setPage: (page: Page) => void;
+  openSettings: (section?: SettingsSection) => void;
   select: (keys: string[], anchor?: string | null) => void;
   setQuery: (query: string) => void;
   setQuickLook: (key: string | null, list?: Entry[] | null) => void;
@@ -67,6 +76,7 @@ export const useNav = create<NavState>()((set, get) => ({
   backStack: [],
   forwardStack: [],
   page: "browse",
+  settingsSection: "general",
   selection: [],
   anchor: null,
   query: "",
@@ -126,6 +136,12 @@ export const useNav = create<NavState>()((set, get) => ({
     });
   },
   setPage: (page) => set({ page, quickLook: null }),
+  openSettings: (section) =>
+    set((s) => ({
+      page: "settings",
+      quickLook: null,
+      settingsSection: section ?? s.settingsSection,
+    })),
   select: (keys, anchor) =>
     set((s) => ({ selection: keys, anchor: anchor === undefined ? s.anchor : anchor })),
   setQuery: (query) => set({ query, selection: [], anchor: null }),
