@@ -42,7 +42,7 @@ MinIO 和 RustFS 继续作为 S3 协议测试后端，不出现在首版支持�
 
 ### R2 配置遵循真实权限和域名边界
 
-支持指定桶名连接，不把 `ListBuckets` 权限设为使用前提。R2 的 S3 凭证不与 Cloudflare 管理 API token 混用。预签名链接使用 R2 S3 域名，自定义公开域名独立配置。具体限制见开发架构及官方资料。
+支持指定桶名连接，不把 `ListBuckets` 权限设为使用前提。R2 的 S3 凭证不与 Cloudflare 管理 API token 混用：OAuth 登录（[ADR-003](0003-cloudflare-oauth-connection.md)）只是用管理 API 铸出一把单桶 R2 令牌，随后仍以派生的 S3 凭证访问对象。预签名链接使用 R2 S3 域名，自定义公开域名独立配置。具体限制见开发架构及官方资料。
 
 ## 对已有决策的影响
 

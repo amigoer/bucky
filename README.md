@@ -84,6 +84,9 @@ throughout.
 R2 support is implemented but not yet verified against a real Cloudflare account. The protocol
 contract and service workflows pass against MinIO and RustFS. R2 connections can use an explicit
 bucket name, so bucket-scoped credentials do not need permission to list every bucket.
+Connections can also be added by signing in to Cloudflare in the browser; Bucky then mints an R2
+token limited to the bucket you pick. That flow is covered by tests against a fake Cloudflare API
+but has not been run against a real account yet.
 Provider-specific features will be added after each provider's basic file operations are verified.
 
 ## Let your agent help

@@ -1,8 +1,8 @@
 # Bucky 开发架构
 
 - 状态：已采纳，v0.1 实现进行中
-- 更新日期：2026-10-18
-- 决策依据：[ADR-002](adr/0002-r2-first-storage.md)
+- 更新日期：2026-10-19
+- 决策依据：[ADR-002](adr/0002-r2-first-storage.md)、[ADR-003](adr/0003-cloudflare-oauth-connection.md)
 - 需求与验收：[SPEC](SPEC.md)
 - 开发顺序：[开发规划](development-plan.md)
 
@@ -120,15 +120,16 @@ SDK 的分页 token 当作不透明字符串使用；不能根据 token、ETag �
 
 | 项目 | 设计 |
 | --- | --- |
-| 身份配置 | Account ID、R2 S3 Access Key ID、Secret Access Key；可指定桶名与只读模式。不是 Cloudflare 通用管理 API token |
+| 身份配置 | Account ID、R2 S3 Access Key ID、Secret Access Key；可指定桶名与只读模式。OAuth 登录（ADR-003）只是用 Cloudflare 管理 API 铸出一把单桶 R2 令牌并派生 S3 凭证，对象访问仍只走 S3；OAuth 访问令牌本身不用于 S3 |
 | Endpoint | 默认 `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`；受地域管辖的桶使用官方对应 endpoint，作为独立连接保存 |
 | Region | `auto`；请求签名、寻址和校验配置集中在 R2 适配配置内 |
-| 连接测试 | 指定桶时验证该桶的对象列举权限；不要求 Admin 权限或列举全部桶成功 |
+| 连接测试 | 指定桶时验证该桶的对象列举权限；不要求 Admin 权限或列举全部桶成功；OAuth 登录在保存前用铸出的凭证真实列举该桶 |
 | 支持范围 | 已存在桶内的浏览、元数据、上传下载、分片、复制/移动/删除、预览和链接分享 |
 | 不纳入首版 | 创建/删除桶、Cloudflare 账号管理、自动修改桶 CORS、CDN 配置、ACL 和 AWS 专属管理界面 |
 | 分享 | 预签名下载默认 1 小时，R2 上限 7 天；自定义公开域名另行配置，只对已开放访问的对象生成公开链接 |
 | 预览 | 有界文本读取；音视频和 PDF 使用短期链接按需读取。浏览器直接访问遵循桶 CORS，不通过放宽整个桶权限来解决 |
 | 校验 | 按 R2 官方兼容表设置；分片 ETag 用于协议交互，不作为整个文件的内容哈希 |
+| OAuth 登录存储 | 刷新令牌与铸出的令牌 ID 存系统钥匙串；Client ID、回调地址和 scope 存 SQLite `settings`；访问令牌只存在于内存会话中 |
 
 预签名链接只能使用 R2 S3 API 域名，不能替换为自定义域名。生成链接是本地签名，不构成远端连通性或读取权限验证；界面不因此显示“连接测试成功”。预签名链接本身也是临时访问凭据，不写入日志或持久化缓存。
 
@@ -171,7 +172,8 @@ plan ID 只是计划标识，不是人工授权证明。GUI 使用用户确认�
 | 数据 | 保存位置 | 规则 |
 | --- | --- | --- |
 | 连接元数据 | SQLite `profiles` | 稳定 ID、类型、账号标识、endpoint、region、指定桶、公开域名、只读标记、凭证引用 |
-| 密钥及临时凭证 | 系统钥匙串 | 不进入 SQLite、前端状态、日志或导出配置；钥匙串不可用时明确失败，不回退为明文文件 |
+| 密钥及临时凭证 | 系统钥匙串 | 含 OAuth 刷新令牌与铸出的 R2 令牌 ID；不进入 SQLite、前端状态、日志或导出配置；钥匙串不可用时明确失败，不回退为明文文件 |
+| 非密配置 | SQLite `settings` | OAuth Client ID、回调地址和 scope；环境变量可覆盖，便于 CLI/MCP 共用同一份配置 |
 | 任务与分片 | SQLite `transfers`、`transfer_parts` | 用事务保存状态；进度事件节流，不能每个网络包都写库 |
 | 执行计划与结果 | SQLite `operation_plans`、`operation_results` | 不可变目标、有效期、执行状态；重复执行返回已有状态，防止同一计划并发执行 |
 | 用量缓存 | SQLite，Phase 4 再加 | 连接、桶、prefix、统计时间和扫描范围；允许失效重算 |

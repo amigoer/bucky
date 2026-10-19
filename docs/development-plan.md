@@ -1,10 +1,10 @@
 # Bucky 开发规划
 
-- 状态：v0.1 实现进行中；shadcn/ui 界面重构完成，本地检查与容器协议测试通过，真实 R2 与三平台待验证
-- 更新日期：2026-10-18
+- 状态：v0.1 实现进行中；shadcn/ui 界面重构与浏览器 Cloudflare 登录入口完成，本地检查与容器协议测试通过，真实 R2 与三平台待验证
+- 更新日期：2026-10-19
 - 架构：[开发架构](architecture.md)
 - 产品范围：[SPEC](SPEC.md)
-- 存储策略：[ADR-002](adr/0002-r2-first-storage.md)
+- 存储策略：[ADR-002](adr/0002-r2-first-storage.md)、[ADR-003](adr/0003-cloudflare-oauth-connection.md)
 
 ## 1. 交付原则
 
@@ -26,10 +26,12 @@
 - CLI 全部命令、稳定 JSON 错误结构与 0/1/2/3/4 退出码。
 - 只读 MCP server 与计划创建工具，不开放写执行；Agent Skill 文本。
 - MinIO 与 RustFS 的协议契约和服务层工作流集成测试通过，包括暂停/恢复。
+- 浏览器 Cloudflare 登录（OAuth + PKCE）驱动、服务用例、桌面绑定与设置页配置；在保存连接前用铸出的单桶 R2 令牌真实列举该桶验证（ADR-003）。
 
 已实现但尚未在真实环境验证：
 
 - 真实 Cloudflare R2 的条件写入、复制/删除竞态、预签名和桶级凭证。
+- Cloudflare OAuth 的端到端行为：回环回调是否被接受、scope 的精确字符串、`POST /accounts/{id}/tokens` 是否接受单桶资源串与运行时查到的权限组 ID、敏感权限对私有客户端是否可用。以上均以官方文档与假服务测试为准，尚未用真实账号走通。
 - 5 GiB 以上传输、进程终止后的恢复和断网重连。
 - macOS 以外的钥匙串、文件选择、拖拽、剪贴板和原子落盘行为。
 - WebView 中的真实 CORS、媒体范围播放和大目录性能。
