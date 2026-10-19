@@ -38,7 +38,7 @@ export function Sidebar() {
     <aside
       className={cn(
         "flex-none overflow-hidden bg-sidebar transition-[width] duration-300 ease-mac",
-        hidden ? "w-0" : "w-60 border-r",
+        hidden ? "w-0" : "w-60",
       )}
     >
       <div

@@ -162,9 +162,9 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-full overflow-hidden bg-background">
+      <div className="flex h-full overflow-hidden bg-sidebar">
         <Sidebar />
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="m-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border bg-background shadow-panel">
           {page === "browse" ? (
             location ? (
               <Browser />
