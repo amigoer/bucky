@@ -39,15 +39,10 @@ export function PageHeader({
     <header
       className={cn(
         "drag-region relative z-10 flex h-[var(--titlebar-height)] flex-none items-center gap-1.5 border-b bg-background pr-3.5 pl-3",
-        hidden && (isMac ? "pl-[82px]" : "pl-4"),
+        hidden && (isMac ? "pl-[118px]" : "pl-[52px]"),
         className,
       )}
     >
-      {hidden ? (
-        <div className="mr-1 flex items-center animate-fade">
-          <SidebarToggle />
-        </div>
-      ) : null}
       {children}
       {isMac ? null : <WindowControls />}
     </header>

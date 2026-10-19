@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Brand } from "@/components/brand";
+import { SidebarToggle } from "@/components/page-header";
 import { isMac } from "@/components/platform";
 import { Toaster } from "@/components/ui/sonner";
 import { Spinner } from "@/components/ui/spinner";
@@ -23,6 +24,7 @@ import { useNav } from "@/lib/nav";
 import { useTransferEvents } from "@/lib/queries";
 import { usePrefs } from "@/lib/store";
 import { applyAppearance } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 
 export default function App() {
   const { t } = useTranslation();
@@ -162,7 +164,7 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-full overflow-hidden bg-sidebar">
+      <div className="relative flex h-full overflow-hidden bg-sidebar">
         <Sidebar />
         <main className="m-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border bg-background shadow-panel">
           {page === "browse" ? (
@@ -179,6 +181,11 @@ export default function App() {
             <SettingsPage />
           )}
         </main>
+
+        {/* Lives outside both headers so it stays put when the sidebar collapses. */}
+        <div className={cn("absolute top-3 z-30", isMac ? "left-[82px]" : "left-4")}>
+          <SidebarToggle />
+        </div>
 
         <QuickLook />
         <ShareDialog />

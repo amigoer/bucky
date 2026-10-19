@@ -11,7 +11,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { Brand } from "@/components/brand";
 import { ConnTile } from "@/components/conn-tile";
-import { SidebarToggle } from "@/components/page-header";
 import { isMac } from "@/components/platform";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,10 +49,9 @@ export function Sidebar() {
         <div
           className={cn(
             "drag-region flex h-[var(--titlebar-height)] flex-none items-center gap-2 pr-2.5",
-            isMac ? "pl-[82px]" : "pl-4",
+            isMac ? "pl-[118px]" : "pl-[52px]",
           )}
         >
-          <SidebarToggle />
           <Brand />
         </div>
 
