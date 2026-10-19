@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,8 +26,9 @@ const testAccountID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 // memorySecrets stands in for the keychain entries that hold the refresh token.
 type memorySecrets struct {
-	mu     sync.Mutex
-	values map[string]string
+	mu      sync.Mutex
+	values  map[string]string
+	failSet bool
 }
 
 func (m *memorySecrets) GetSecret(key string) (string, error) {
@@ -41,6 +44,9 @@ func (m *memorySecrets) GetSecret(key string) (string, error) {
 func (m *memorySecrets) SetSecret(key, value string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.failSet {
+		return core.NewError("credentials_unavailable", "Cannot save the authorization")
+	}
 	m.values[key] = value
 	return nil
 }
@@ -147,6 +153,12 @@ func (f *fakeCloudflare) seen(needle string) bool {
 		}
 	}
 	return false
+}
+
+func (f *fakeCloudflare) mintedCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.minted
 }
 
 func (f *fakeCloudflare) deletedTokens() []string {
@@ -449,6 +461,192 @@ func TestReauthorizeReplacesTheMintedToken(t *testing.T) {
 	}
 	if record.TokenID != "token-2" || record.RefreshToken != "refresh-refreshed" {
 		t.Fatalf("stored authorization = %+v", record)
+	}
+}
+
+func TestCloudflareReconnectKeepsTheOriginalAccount(t *testing.T) {
+	f := newCloudflareFixture(t, nil)
+	ctx := t.Context()
+	if err := f.svc.DB.SaveProfile(ctx, core.Profile{
+		ID: "p9", Name: "Original", AccountID: strings.Repeat("a", 32),
+		Bucket: "media-bucket", CredentialSource: "cloudflare",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	session := f.signIn(t)
+	_, err := f.svc.ConnectCloudflare(ctx, CloudflareConnection{
+		SessionID: session.SessionID, ProfileID: "p9", Name: "R2 media",
+		AccountID: testAccountID, Bucket: "media-bucket",
+	})
+	if err == nil || core.AsError(err).Code != "invalid_argument" {
+		t.Fatalf("reconnecting another account = %v", err)
+	}
+	if f.fake.mintedCount() != 0 || mustProfile(t, f.svc, "p9").AccountID != strings.Repeat("a", 32) {
+		t.Fatal("reconnecting another account changed the connection or minted a token")
+	}
+}
+
+func TestCloudflareSaveFailureRestoresCredentials(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		for _, failure := range []string{"keychain", "database"} {
+			t.Run(fmt.Sprintf("existing=%t/%s", existing, failure), func(t *testing.T) {
+				f := newCloudflareFixture(t, nil)
+				ctx := t.Context()
+				var previous core.Profile
+				if existing {
+					session := f.signIn(t)
+					var err error
+					previous, err = f.svc.ConnectCloudflare(ctx, CloudflareConnection{
+						SessionID: session.SessionID, ProfileID: "p9", Name: "R2 media",
+						AccountID: testAccountID, Bucket: "media-bucket",
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				previousSecret, _ := f.secrets.get(cloudflareSecret + "p9")
+				if failure == "keychain" {
+					f.secrets.failSet = true
+				} else {
+					db, err := sql.Open("sqlite", filepath.Join(f.svc.DB.Dir, "bucky.db"))
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer func() { _ = db.Close() }()
+					if _, err := db.ExecContext(ctx, `CREATE TRIGGER reject_profile BEFORE INSERT ON profiles BEGIN SELECT RAISE(ABORT, 'profile write rejected'); END`); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				var err error
+				if existing {
+					previous.ReadOnly = true
+					_, err = f.svc.SaveProfile(ctx, ProfileInput{Profile: previous})
+				} else {
+					session := f.signIn(t)
+					_, err = f.svc.ConnectCloudflare(ctx, CloudflareConnection{
+						SessionID: session.SessionID, ProfileID: "p9", Name: "R2 media",
+						AccountID: testAccountID, Bucket: "media-bucket",
+					})
+				}
+				if err == nil {
+					t.Fatal("the failed save returned success")
+				}
+				wantToken := "token-1"
+				if existing {
+					wantToken = "token-2"
+				}
+				if deleted := f.fake.deletedTokens(); len(deleted) != 1 || deleted[0] != wantToken {
+					t.Fatalf("deleted tokens = %v, want only the new token", deleted)
+				}
+				stored, credentialsErr := f.vault.Get("p9")
+				if existing {
+					if credentialsErr != nil || stored != cloudflare.S3Credentials(mintedToken(1)) {
+						t.Fatal("the original credentials were not restored")
+					}
+					if saved := mustProfile(t, f.svc, "p9"); saved.ReadOnly {
+						t.Fatal("the failed save changed the stored permissions")
+					}
+				} else {
+					if credentialsErr == nil {
+						t.Fatal("the failed save left credentials behind")
+					}
+					if _, err := f.svc.DB.Profile(ctx, "p9"); core.AsError(err).Code != "not_found" {
+						t.Fatalf("profile after a failed save: %v", err)
+					}
+				}
+				if secret, _ := f.secrets.get(cloudflareSecret + "p9"); secret != previousSecret {
+					t.Fatal("the original authorization was not restored")
+				}
+			})
+		}
+	}
+}
+
+func TestSavingAChangedPermissionReplacesTheMintedToken(t *testing.T) {
+	f := newCloudflareFixture(t, nil)
+	ctx := t.Context()
+	session := f.signIn(t)
+	p, err := f.svc.ConnectCloudflare(ctx, CloudflareConnection{
+		SessionID: session.SessionID, ProfileID: "p9", Name: "R2 media",
+		AccountID: testAccountID, Bucket: "media-bucket",
+	})
+	if err != nil {
+		t.Fatalf("ConnectCloudflare: %v", err)
+	}
+
+	createdAt := p.CreatedAt
+	p.ReadOnly = true
+	if _, err := f.svc.SaveProfile(ctx, ProfileInput{Profile: p, AccessKeyID: "manual", SecretAccessKey: "manual"}); err == nil || core.AsError(err).Code != "invalid_argument" {
+		t.Fatalf("scope change with manual keys = %v", err)
+	}
+	if f.fake.mintedCount() != 1 {
+		t.Fatal("invalid input minted a replacement token")
+	}
+	p.CreatedAt = time.Time{}
+	saved, err := f.svc.SaveProfile(ctx, ProfileInput{Profile: p})
+	if err != nil {
+		t.Fatalf("SaveProfile: %v", err)
+	}
+	if saved.CreatedAt != createdAt || saved.UpdatedAt.IsZero() || saved != mustProfile(t, f.svc, "p9") {
+		t.Fatal("the saved profile timestamps do not match the returned profile")
+	}
+	if count := f.fake.mintedCount(); count != 2 {
+		t.Fatalf("minted tokens = %d, want the token to be replaced", count)
+	}
+	if body := mustJSON(t, f.fake.lastBody()); !strings.Contains(body, "group-read") {
+		t.Fatalf("token body = %s, want the read permission group", body)
+	}
+	want := cloudflare.S3Credentials(mintedToken(2))
+	if stored, err := f.vault.Get("p9"); err != nil || stored != want {
+		t.Fatalf("vault credentials = %+v, err = %v", stored, err)
+	}
+	if deleted := f.fake.deletedTokens(); len(deleted) != 1 || deleted[0] != "token-1" {
+		t.Fatalf("the replaced token was not removed: %v", deleted)
+	}
+	secret, _ := f.secrets.get(cloudflareSecret + "p9")
+	var record authorization
+	if err := json.Unmarshal([]byte(secret), &record); err != nil {
+		t.Fatalf("stored authorization: %v", err)
+	}
+	if !record.ReadOnly || record.TokenID != "token-2" {
+		t.Fatalf("stored authorization = %+v", record)
+	}
+	if saved := mustProfile(t, f.svc, "p9"); !saved.ReadOnly {
+		t.Fatalf("saved profile = %+v", saved)
+	}
+
+	// An edit that leaves the token's scope alone keeps the same token.
+	p.Name = "R2 media renamed"
+	if _, err := f.svc.SaveProfile(ctx, ProfileInput{Profile: p}); err != nil {
+		t.Fatalf("SaveProfile: %v", err)
+	}
+	if count := f.fake.mintedCount(); count != 2 {
+		t.Fatalf("minted tokens = %d, want no new token for a rename", count)
+	}
+}
+
+func TestChangingAPermissionWithoutAnAuthorizationAsksForASignIn(t *testing.T) {
+	f := newCloudflareFixture(t, nil)
+	ctx := t.Context()
+	session := f.signIn(t)
+	p, err := f.svc.ConnectCloudflare(ctx, CloudflareConnection{
+		SessionID: session.SessionID, ProfileID: "p9", Name: "R2 media",
+		AccountID: testAccountID, Bucket: "media-bucket",
+	})
+	if err != nil {
+		t.Fatalf("ConnectCloudflare: %v", err)
+	}
+	if err := f.secrets.DeleteSecret(cloudflareSecret + "p9"); err != nil {
+		t.Fatal(err)
+	}
+
+	p.ReadOnly = true
+	if _, err := f.svc.SaveProfile(ctx, ProfileInput{Profile: p}); core.AsError(err).Code != "credentials_unavailable" {
+		t.Fatalf("SaveProfile without an authorization = %v", err)
+	}
+	if saved := mustProfile(t, f.svc, "p9"); saved.ReadOnly {
+		t.Fatalf("the profile changed although the token could not: %+v", saved)
 	}
 }
 

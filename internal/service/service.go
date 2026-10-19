@@ -142,6 +142,26 @@ func (s *Service) SaveProfile(ctx context.Context, input ProfileInput) (core.Pro
 	if err != nil {
 		return p, err
 	}
+	if p.CredentialSource == "cloudflare" {
+		if input.AccessKeyID != "" || input.SecretAccessKey != "" {
+			return p, core.Invalid("A Cloudflare sign-in connection stores no S3 keys")
+		}
+		if p.ID != "" {
+			old, err := s.DB.Profile(ctx, p.ID)
+			if err != nil {
+				return p, err
+			}
+			if old.CredentialSource != "cloudflare" {
+				return p, core.Invalid("Use Cloudflare sign-in to authorize this connection")
+			}
+			if old.AccountID != p.AccountID {
+				return p, core.Invalid("A Cloudflare connection cannot change its account")
+			}
+			if cloudflareScopeChanged(old, p) {
+				return s.remintCloudflare(ctx, p)
+			}
+		}
+	}
 	err = s.Transfers.WithWriteLock(ctx, func() error {
 		now := time.Now().UTC()
 		if p.ID == "" {
@@ -167,10 +187,6 @@ func (s *Service) SaveProfile(ctx context.Context, input ProfileInput) (core.Pro
 				return err
 			}
 		case "cloudflare":
-			// The minted credentials are written by the sign-in flow only.
-			if input.AccessKeyID != "" || input.SecretAccessKey != "" {
-				return core.Invalid("A Cloudflare sign-in connection stores no S3 keys")
-			}
 			if _, err := s.vault.Get(p.ID); err != nil {
 				return err
 			}

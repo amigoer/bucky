@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -391,6 +392,12 @@ func (s *Service) ConnectCloudflare(ctx context.Context, input CloudflareConnect
 	}
 	if p.ID == "" {
 		p.ID = ID()
+	} else if existing, err := s.DB.Profile(ctx, p.ID); err == nil {
+		if existing.AccountID != p.AccountID {
+			return core.Profile{}, core.Invalid("Sign in with the Cloudflare account used by this connection")
+		}
+	} else if core.AsError(err).Code != "not_found" {
+		return core.Profile{}, err
 	}
 	minted, err := session.client.CreateR2Token(ctx, token, cloudflare.TokenSpec{
 		Name:         tokenName(p.Name, p.Bucket),
@@ -418,7 +425,8 @@ func (s *Service) ConnectCloudflare(ctx context.Context, input CloudflareConnect
 		Scope:        scope,
 		AuthorizedAt: time.Now().UTC(),
 	}
-	if err := s.storeCloudflareProfile(ctx, p, creds, record); err != nil {
+	p, err = s.storeCloudflareProfile(ctx, p, creds, record)
+	if err != nil {
 		s.discardToken(ctx, session.client, token, p.AccountID, minted.ID)
 		return core.Profile{}, err
 	}
@@ -429,27 +437,50 @@ func (s *Service) ConnectCloudflare(ctx context.Context, input CloudflareConnect
 	return p, nil
 }
 
-func (s *Service) storeCloudflareProfile(ctx context.Context, p core.Profile, creds core.Credentials, record authorization) error {
+func (s *Service) storeCloudflareProfile(ctx context.Context, p core.Profile, creds core.Credentials, record authorization) (core.Profile, error) {
 	encoded, err := json.Marshal(record)
 	if err != nil {
-		return core.NewError("internal", "Cannot encode the Cloudflare authorization")
+		return p, core.NewError("internal", "Cannot encode the Cloudflare authorization")
 	}
-	return s.Transfers.WithWriteLock(ctx, func() error {
+	err = s.Transfers.WithWriteLock(ctx, func() error {
 		now := time.Now().UTC()
-		if p.CreatedAt.IsZero() {
-			p.CreatedAt = now
-		} else if old, err := s.DB.Profile(ctx, p.ID); err == nil {
+		old, err := s.DB.Profile(ctx, p.ID)
+		switch {
+		case err == nil:
 			p.CreatedAt = old.CreatedAt
+		case core.AsError(err).Code == "not_found":
+			p.CreatedAt = now
+		default:
+			return err
 		}
 		p.UpdatedAt = now
+		previousCredentials, credentialsErr := s.vault.Get(p.ID)
+		previousSecret, secretErr := s.secrets.GetSecret(cloudflareSecret + p.ID)
+		restoreCredentials := func() error {
+			if credentialsErr != nil {
+				return s.vault.Delete(p.ID)
+			}
+			return s.vault.Set(p.ID, previousCredentials)
+		}
 		if err := s.vault.Set(p.ID, creds); err != nil {
 			return err
 		}
 		if err := s.secrets.SetSecret(cloudflareSecret+p.ID, string(encoded)); err != nil {
-			return err
+			return errors.Join(err, restoreCredentials())
 		}
-		return s.DB.SaveProfile(ctx, p)
+		if err := s.DB.SaveProfile(ctx, p); err != nil {
+			// Keychain writes are outside the database transaction.
+			var restoreSecretErr error
+			if secretErr != nil {
+				restoreSecretErr = s.secrets.DeleteSecret(cloudflareSecret + p.ID)
+			} else {
+				restoreSecretErr = s.secrets.SetSecret(cloudflareSecret+p.ID, previousSecret)
+			}
+			return errors.Join(err, restoreSecretErr, restoreCredentials())
+		}
+		return nil
 	})
+	return p, err
 }
 
 // verifyCredentials proves the minted S3 pair works before anything is stored.
@@ -509,7 +540,15 @@ func (s *Service) ReauthorizeCloudflare(ctx context.Context, profileID string) (
 	if p.CredentialSource != "cloudflare" {
 		return core.Profile{}, core.NewError("unsupported", "This connection does not use Cloudflare sign-in")
 	}
-	record := s.authorization(ctx, profileID)
+	return s.remintCloudflare(ctx, p)
+}
+
+// Scope changes require a new R2 token; editing the profile cannot alter it.
+func (s *Service) remintCloudflare(ctx context.Context, p core.Profile) (core.Profile, error) {
+	record := s.authorization(ctx, p.ID)
+	if record.RefreshToken == "" {
+		return core.Profile{}, core.NewError("credentials_unavailable", "Sign in to Cloudflare again to change this connection")
+	}
 	client, _, err := s.cloudflareClient(ctx)
 	if err != nil {
 		return core.Profile{}, err
@@ -536,16 +575,17 @@ func (s *Service) ReauthorizeCloudflare(ctx context.Context, profileID string) (
 	if tokens.RefreshToken != "" {
 		record.RefreshToken = tokens.RefreshToken
 	}
-	previous := record.TokenID
+	previousID, previousAccount := record.TokenID, record.AccountID
+	record.AccountID, record.Jurisdiction, record.ReadOnly = p.AccountID, p.Jurisdiction, p.ReadOnly
 	record.TokenID, record.TokenName = minted.ID, minted.Name
 	record.Scope, record.AuthorizedAt = tokens.Scope, time.Now().UTC()
-	if err := s.storeCloudflareProfile(ctx, p, creds, record); err != nil {
+	p, err = s.storeCloudflareProfile(ctx, p, creds, record)
+	if err != nil {
 		s.discardToken(ctx, client, tokens.AccessToken, p.AccountID, minted.ID)
 		return core.Profile{}, err
 	}
-	if previous != "" && previous != minted.ID {
-		// The replaced token is revoked only after the new one is stored.
-		s.discardToken(ctx, client, tokens.AccessToken, p.AccountID, previous)
+	if previousID != "" && previousID != minted.ID {
+		s.discardToken(ctx, client, tokens.AccessToken, previousAccount, previousID)
 	}
 	return p, nil
 }
@@ -587,6 +627,14 @@ func (s *Service) DisconnectCloudflare(ctx context.Context, profileID string, co
 		}
 		return s.secrets.DeleteSecret(cloudflareSecret + profileID)
 	})
+}
+
+func cloudflareScopeChanged(old, next core.Profile) bool {
+	if old.Jurisdiction == "" {
+		old.Jurisdiction = "default"
+	}
+	return old.Bucket != next.Bucket || old.AccountID != next.AccountID ||
+		old.Jurisdiction != next.Jurisdiction || old.ReadOnly != next.ReadOnly
 }
 
 func pickAccount(accounts []CloudflareAccount, id string) (string, error) {
