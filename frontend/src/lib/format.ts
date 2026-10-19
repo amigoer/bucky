@@ -90,3 +90,30 @@ export function breadcrumbs(prefix: string): { name: string; prefix: string }[] 
   const parts = prefix.split("/").filter(Boolean);
   return parts.map((name, index) => ({ name, prefix: `${parts.slice(0, index + 1).join("/")}/` }));
 }
+
+/** Seconds as m:ss or h:mm:ss; "—" when unknown. */
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+export function formatTime(value: string | number, locale = "en"): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export function parentPrefix(prefix: string): string {
+  const trimmed = prefix.replace(/\/$/, "");
+  const slash = trimmed.lastIndexOf("/");
+  return slash < 0 ? "" : trimmed.slice(0, slash + 1);
+}
