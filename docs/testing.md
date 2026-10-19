@@ -76,11 +76,11 @@ task run
 - `go vet ./...`：通过。
 - `golangci-lint run ./...`：0 个问题。
 - `tsc -b`：通过。
-- Biome：退出码 0；仅剩 CSS 的 `noImportantStyles`（减少动态效果块）和 `noDescendingSpecificity` 警告。
-- Vitest：1 个测试文件、5 个测试通过。
-- Vite 生产构建：通过。输出单个 JS chunk，约 466 kB（gzip 约 144 kB），CSS 约 32 kB。
+- Biome：退出码 0，无告警；CSS 解析启用 Tailwind 指令。
+- Vitest：4 个测试文件、15 个测试通过（格式化、列表语义、计划结果与快速上传模板）。
+- Vite 生产构建：通过。输出单个 JS chunk，约 776 kB（gzip 约 234 kB），CSS 约 58 kB（gzip 约 11 kB）。
 - `CGO_ENABLED=0 go build ./cmd/bucky`：通过。
-- Wails 绑定生成：1 个服务、25 个方法、21 个模型、2 个事件。
+- Wails 绑定生成：1 个服务、30 个方法、23 个模型、3 个事件。
 
 ### 3.2 协议契约（MinIO 与 RustFS）
 
@@ -141,11 +141,25 @@ MCP 通过 stdio 完成 `initialize` 与 `tools/list`。当前工具集：
 
 ### 3.6 自绘窗口 chrome
 
-桌面窗口现在由前端绘制 40px 标题栏。macOS 保留原生窗口边框，隐藏原生标题文字与背景，并通过 `internal/macwindow` 的 Objective-C 辅助代码把系统红绿灯按钮重新对齐到标题栏中心；Windows 和 Linux 使用无边框窗口，由前端绘制最小化、最大化/还原和关闭按钮。标题栏整体是 `--wails-draggable: drag` 区域，按钮单独排除拖动。
+桌面窗口现在由前端绘制 52px 标题栏。macOS 保留原生窗口边框，隐藏原生标题文字与背景，并通过 `internal/macwindow` 的 Objective-C 辅助代码把系统红绿灯按钮重新对齐到标题栏中心；Windows 和 Linux 使用无边框窗口，由前端绘制最小化、最大化/还原和关闭按钮。标题栏整体是 `--wails-draggable: drag` 区域，按钮单独排除拖动。
 
-在生产 bundle 上分别以模拟的 darwin 和 windows 环境运行 WKWebView 测试：标题栏高度 40px，应用内容从 y=40 开始；macOS 版本保留 78px 左侧空间且不渲染自绘按钮，Windows 版本渲染 3 个窗口按钮，拖动属性均为 `drag`。点击 3 个按钮分别发出的窗口方法为 17、39、2，即 `Minimise`、`ToggleMaximise`、`Close`。macOS 原生应用已重新构建并启动，窗口存在。
+在生产 bundle 上分别以模拟的 darwin 和 windows 环境运行 WKWebView 测试：当时的 40px 标题栏测试已通过。界面重构后标题栏高度调整为 52px，macOS 保留 78px 左侧空间且不渲染自绘按钮，Windows / Linux 渲染 3 个窗口按钮，拖动属性均为 `drag`；新高度的原生窗口交互仍需人工走查。点击 3 个按钮分别发出的窗口方法为 17、39、2，即 `Minimise`、`ToggleMaximise`、`Close`。macOS 原生应用已重新构建并启动，窗口存在。
 
 Windows 和 Linux 的按钮点击、无边框缩放、贴靠和最大化事件没有在真实平台验证；macOS 红绿灯的实际像素位置也没有自动截图，仍需人工走查。由于当前终端没有屏幕录制和辅助功能权限，没有执行点击、拖拽和文件选择。
+
+### 3.7 界面重构验证（Web mock 后端）
+
+使用 `pnpm dev` 的浏览器 mock 后端（不是 Wails 桌面运行时，也不是真实 R2）完成以下走查：
+
+- 亮色与深色主题、侧栏折叠、页面切换与 ⌘F 搜索面板。
+- 列表 / 图标 / 分栏视图、面包屑导航、排序、分页加载、全选与单选、浮层选择栏。
+- Quick Look 文本 / 图片 / 媒体 / PDF 分支与元数据、分享对话框的临时链接与公开链接切换。
+- 删除计划：自动生成、确认前禁用危险按钮、执行后刷新列表并清除选择；逐项结果不再误报空错误。
+- 复制 / 移动计划的同目录与“搬入自身”校验；只读连接的只读横幅、禁用上传以及仅保留下载 / 分享。
+- 快速上传：粘贴图片、模板路径、WebP 输出、上传后对象出现在目标 prefix、Markdown / URL 复制状态。
+- 用量扫描进度与结果、传输页筛选与限速控件、设置页主题 / 语言 / 限速 / 快捷键 / 集成片段。
+
+上述结果只证明前端交互与 mock 契约一致；真实 Wails 事件、R2 响应和平台 WebView 行为仍以第 4 节为准。
 
 ## 4. 尚未验证
 
@@ -157,7 +171,8 @@ Windows 和 Linux 的按钮点击、无边框缩放、贴靠和最大化事件�
 - **真实网络与 CORS**：没有在 WebView 中打开真实 R2 预签名媒体，CORS、视频范围请求和长时间预签名未验证。
 - **大目录性能**：没有构造 10 万对象数据集，虚拟滚动、搜索遍历和用量扫描的交互表现未测量。
 - **桌面发布**：仅在 macOS 生成过本地 ad-hoc 签名的 `.app`，没有 Developer ID 签名、公证、DMG 安装包或首次打开流程验证。
-- **图床与 Skill 安装器**：剪贴板图片上传、命名模板、压缩/WebP、Markdown 链接和 Skill 一键安装尚未实现。
+- **快速上传的真实后端行为**：剪贴板图片上传、命名模板、压缩/WebP、Markdown 链接已在 Web mock 后端走通，尚未在真实 R2 上验证冲突、公开链接和图片转换结果。
+- **Skill 安装器**：Skill 一键安装尚未实现。
 - **跨平台三平台构建链路**：当前只在 macOS 完成 Wails 原生构建。
 
 ## 5. 测试数据与安全约定

@@ -1,11 +1,11 @@
 # Bucky UI 设计稿
 
 - 更新日期：2026-10-18
-- 状态：设计提案，等待评审
+- 状态：已实现（`frontend/` 为产品实现，本目录保留设计原型与说明）
 - 入口：[design/index.html](index.html)
-- 设计基线：shadcn/ui、Tailwind CSS v4、lucide-react、Wails 自绘 40 px 标题栏
+- 设计基线：shadcn/ui、Tailwind CSS v4、lucide-react、Wails 自绘 52 px 标题栏
 
-本目录只包含设计与原型，不参与产品构建，也没有修改 `frontend/` 或 Go 代码。页面中的连接、对象、传输、计划 ID 和密钥均为演示数据，`bucky-placeholder-secret` 不是真实凭证。评审通过后再进入实现阶段。
+本目录只包含设计与原型，不参与产品构建。页面中的连接、对象、传输、计划 ID 和密钥均为演示数据，`bucky-placeholder-secret` 不是真实凭证。产品实现已经落在 `frontend/`，与本文的差异记录在最后一节。
 
 ## 1. 使用方式
 
@@ -49,7 +49,7 @@ Bucky 是本地优先的桌面工具，界面应该让对象存储操作显得�
 - **一处一个主动作。** 每个页面只保留一个主按钮；次要操作退为 outline 或 ghost。批量操作浮在内容上方，不挤占工具栏。
 - **危险操作需要上下文。** 删除只通过计划摘要对话框执行，展示对象、体积、有效期与不可撤销提示。
 
-视觉参考对象是 shadcn/ui 的中性主题、Raycast 的窗口质感与 Finder 的浏览效率。标题栏、侧栏和内容区使用同一套 token，macOS 与 Windows / Linux 的窗口 chrome 保持 40 px 高度。
+视觉参考对象是 shadcn/ui 的中性主题、Raycast 的窗口质感与 Finder 的浏览效率。标题栏、侧栏和内容区使用同一套 token，macOS 与 Windows / Linux 的窗口 chrome 保持 52 px 高度。
 
 ## 3. 设计令牌
 
@@ -206,7 +206,7 @@ Bucky 是本地优先的桌面工具，界面应该让对象存储操作显得�
 | 区域 | 尺寸 | 说明 |
 | --- | --- | --- |
 | 应用窗口（设计画板） | 1280 × 800 | 实际窗口可缩放，最小建议 1040 × 680 |
-| 标题栏 | 40 px | macOS 保留原生红绿灯；Windows / Linux 自绘控件；整体为拖动区 |
+| 标题栏 | 52 px | macOS 保留原生红绿灯；Windows / Linux 自绘控件；整体为拖动区 |
 | 侧栏 | 256 px | 连接、桶、传输与设置的唯一入口 |
 | 内容左边距 | 24 px | 页面标题、表格容器与操作区对齐 |
 | 表格容器 | 自适应宽度 | 圆角 12 px，内部工具栏 48 px，表头 33 px，行 48 px |
@@ -340,7 +340,7 @@ Bucky 是本地优先的桌面工具，界面应该让对象存储操作显得�
 
 | 界面区域 | 组件 | 说明 |
 | --- | --- | --- |
-| 窗口 chrome | 自定义 `TitleBar` | 不使用 shadcn 组件；40 px，拖动区，macOS 原生红绿灯 |
+| 窗口 chrome | 自定义 `PageHeader` | 不使用 shadcn 组件；52 px，拖动区，macOS 原生红绿灯 |
 | 侧栏 | `ScrollArea`、`Button`、`Badge` | 连接行是自定义组合，激活态使用 sidebar accent |
 | 对象表格 | `Table`、`Checkbox`、`DropdownMenu` | 48 px 行高，sticky 表头，TanStack Virtual |
 | 面包屑 | `Breadcrumb` | 桶、prefix、当前文件夹 |
@@ -387,7 +387,7 @@ Bucky 是本地优先的桌面工具，界面应该让对象存储操作显得�
 
 1. **Token 层**：在 `frontend/src/style.css` 或独立 `theme.css` 中落地两套变量，接入 Tailwind v4 `@theme inline`；保持现有明暗主题入口和持久化逻辑。
 2. **基础组件**：用 shadcn CLI 引入 Button、Input、Select、Checkbox、Switch、Dialog、AlertDialog、Sheet、Tabs、Table、Progress、Badge、DropdownMenu、Tooltip、ScrollArea、Separator。删除重复的自定义 CSS 之前先确认现有行为覆盖。
-3. **应用外壳**：先替换侧栏、页面标题和表格容器；标题栏保持现有 Wails 40 px 与自绘方式，不引入第二套窗口逻辑。
+3. **应用外壳**：先替换侧栏、页面标题和表格容器；标题栏保持 Wails 自绘方式，不引入第二套窗口逻辑。
 4. **工作区**：把表格列、选择状态、列表 / 网格切换和批量操作拆开；对象身份继续使用连接 ID + 桶 + 完整 key，不按文件名选中。
 5. **对话框与 Sheet**：连接表单、对象详情、传输、删除计划和设置逐页替换；服务调用和只读检查不动。
 6. **细节**：通知使用 Sonner；命令面板（⌘K）与快捷键在基础交互稳定后再加；最后补键盘、读屏器、100k 对象性能和三平台走查。
@@ -397,7 +397,7 @@ Bucky 是本地优先的桌面工具，界面应该让对象存储操作显得�
 - 不改变服务层的计划、确认、只读和逐项结果语义。
 - 不把云端 SDK 类型带进前端；继续只调用生成绑定。
 - 不为了视觉引入重量级组件库；shadcn 的组件代码在本地，可按需裁剪。
-- 标题栏高度仍需与 `cmd/bucky-desktop/main.go` 中的 40 px 保持同步。
+- 标题栏高度仍需与 `cmd/bucky-desktop/main.go` 和 `frontend/src/style.css` 中的 52 px 保持同步。
 - 流式与可恢复传输不在 UI 重构中重写。
 
 ## 10. 待确认
@@ -425,6 +425,25 @@ Bucky 是本地优先的桌面工具，界面应该让对象存储操作显得�
 - Safari / WKWebView、Firefox、Windows / Linux 实际渲染。
 - 真实读屏器、完整键盘流程与 WCAG 对比度测量。
 - 真实 R2 数据、预签名媒体 CORS、100k 对象虚拟滚动与传输进度压力。
-- 设计稿尚未接入产品构建；当前桌面端视觉未改变。
+- 原型不是产品构建的一部分；产品界面已按本设计在 `frontend/` 中实现。
 
 设计稿中的尺寸、间距和色值为提案值。实现时如果与真实内容或平台行为冲突，以可读性、现有服务语义和三端一致性为准重新调整。
+
+## 12. 实现状态（2026-10-18）
+
+`frontend/` 已完成基于 shadcn/ui 的重构，主要落地内容：
+
+- 列表 / 图标 / 分栏三种浏览视图，面包屑、排序、⌘F 全库搜索与虚拟滚动。
+- Quick Look 预览、分享对话框、复制 / 移动 / 删除计划审阅、传输页与用量页。
+- 连接对话框、设置页、双语与明暗主题、只读连接限制。
+- 剪贴板快速上传、命名模板、WebP 转换与 Markdown / URL 复制。
+
+与原型的有意差异：
+
+- 标题栏高度从 40 px 调整为 52 px，与 Wails 窗口控制按钮和 macOS 红绿灯对齐。
+- 设置不作为 Dialog，而是独立页面，便于扩展和滚动。
+- 表格行高使用 34–36 px 的桌面密度，选择栏使用深色 HUD。
+- 删除确认使用顶部 Sheet 而不是 AlertDialog，以便展示计划有效期与逐项结果。
+- 对象详情以 Quick Look 模态框呈现，分栏视图另有固定预览侧栏。
+
+尚未验证：真实 R2、Windows / Linux WebView、读屏器与 100k 对象性能。详见 `docs/testing.md`。
