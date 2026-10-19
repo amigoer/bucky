@@ -12,18 +12,23 @@ import * as app$0 from "../../../../amigoer/bucky/internal/app/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as core$0 from "../../../../amigoer/bucky/internal/core/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as service$0 from "../../../../amigoer/bucky/internal/service/models.js";
 
 function configure() {
     Object.freeze(Object.assign($Create.Events, {
-        "files:dropped": $$createType0,
-        "transfer:updated": $$createType1,
-        "usage:progress": $$createType2,
+        "cloudflare:signin": $$createType0,
+        "files:dropped": $$createType1,
+        "transfer:updated": $$createType2,
+        "usage:progress": $$createType3,
     }));
 }
 
 // Private type creation functions
-const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = core$0.TransferTask.createFrom;
-const $$createType2 = app$0.UsageProgress.createFrom;
+const $$createType0 = service$0.CloudflareSignIn.createFrom;
+const $$createType1 = $Create.Array($Create.Any);
+const $$createType2 = core$0.TransferTask.createFrom;
+const $$createType3 = app$0.UsageProgress.createFrom;
 
 configure();

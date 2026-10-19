@@ -22,6 +22,10 @@ export function Buckets(id: string): $CancellablePromise<core$0.Bucket[]> {
     });
 }
 
+export function CancelCloudflareSignIn(sessionID: string): $CancellablePromise<void> {
+    return $Call.ByID(860897415, sessionID);
+}
+
 export function CancelRequest(id: string): $CancellablePromise<void> {
     return $Call.ByID(3756486131, id);
 }
@@ -30,14 +34,42 @@ export function CancelTransfer(id: string): $CancellablePromise<void> {
     return $Call.ByID(938409237, id);
 }
 
+export function CloudflareBuckets(sessionID: string, accountID: string): $CancellablePromise<core$0.Bucket[]> {
+    return $Call.ByID(2698569570, sessionID, accountID).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+export function CloudflareSignInStatus(sessionID: string): $CancellablePromise<service$0.CloudflareSignIn> {
+    return $Call.ByID(234290359, sessionID).then(($result: any) => {
+        return $$createType2($result);
+    });
+}
+
+export function CloudflareStatus(profileID: string): $CancellablePromise<service$0.CloudflareStatus> {
+    return $Call.ByID(3418725937, profileID).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
+export function ConnectCloudflare(input: service$0.CloudflareConnection): $CancellablePromise<core$0.Profile> {
+    return $Call.ByID(2500602533, input).then(($result: any) => {
+        return $$createType4($result);
+    });
+}
+
 export function CopyText(text: string): $CancellablePromise<void> {
     return $Call.ByID(3145364594, text);
 }
 
 export function CreatePlan(req: core$0.PlanRequest): $CancellablePromise<core$0.OperationPlan> {
     return $Call.ByID(449745787, req).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType5($result);
     });
+}
+
+export function DisconnectCloudflare(profileID: string, confirmed: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1897600513, profileID, confirmed);
 }
 
 /**
@@ -47,32 +79,36 @@ export function CreatePlan(req: core$0.PlanRequest): $CancellablePromise<core$0.
  */
 export function DownloadTo(dir: string, sources: core$0.ObjectRef[], base: string): $CancellablePromise<$models.DownloadResult[]> {
     return $Call.ByID(1528851821, dir, sources, base).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType7($result);
     });
 }
 
 export function ExecutePlan(id: string, confirmed: boolean): $CancellablePromise<core$0.OperationPlan> {
     return $Call.ByID(859923028, id, confirmed).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType5($result);
     });
 }
 
 export function Find(req: core$0.FindRequest): $CancellablePromise<core$0.FindResult> {
     return $Call.ByID(3966367055, req).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType8($result);
     });
 }
 
 export function GetPlan(id: string): $CancellablePromise<core$0.OperationPlan> {
     return $Call.ByID(370347483, id).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType5($result);
     });
 }
 
 export function List(req: core$0.ListRequest): $CancellablePromise<core$0.ListPage> {
     return $Call.ByID(4286723812, req).then(($result: any) => {
-        return $$createType6($result);
+        return $$createType9($result);
     });
+}
+
+export function OpenExternal(raw: string): $CancellablePromise<void> {
+    return $Call.ByID(2312476139, raw);
 }
 
 export function PauseTransfer(id: string): $CancellablePromise<void> {
@@ -89,19 +125,25 @@ export function PickDownload(name: string): $CancellablePromise<string> {
 
 export function PickFiles(directory: boolean): $CancellablePromise<string[]> {
     return $Call.ByID(1674977056, directory).then(($result: any) => {
-        return $$createType7($result);
+        return $$createType10($result);
     });
 }
 
 export function Profiles(): $CancellablePromise<core$0.Profile[]> {
     return $Call.ByID(812425070).then(($result: any) => {
-        return $$createType9($result);
+        return $$createType11($result);
     });
 }
 
 export function ReadText(ref: core$0.ObjectRef): $CancellablePromise<core$0.TextPreview> {
     return $Call.ByID(2502526023, ref).then(($result: any) => {
-        return $$createType10($result);
+        return $$createType12($result);
+    });
+}
+
+export function ReauthorizeCloudflare(profileID: string): $CancellablePromise<core$0.Profile> {
+    return $Call.ByID(4025311467, profileID).then(($result: any) => {
+        return $$createType4($result);
     });
 }
 
@@ -111,13 +153,19 @@ export function RemoveProfile(id: string, confirmed: boolean): $CancellablePromi
 
 export function ResumeTransfer(id: string): $CancellablePromise<core$0.TransferTask> {
     return $Call.ByID(1930358212, id).then(($result: any) => {
-        return $$createType11($result);
+        return $$createType13($result);
     });
 }
 
 export function SaveProfile(input: service$0.ProfileInput): $CancellablePromise<core$0.Profile> {
     return $Call.ByID(3379193962, input).then(($result: any) => {
-        return $$createType8($result);
+        return $$createType4($result);
+    });
+}
+
+export function SaveSettings(input: service$0.Settings): $CancellablePromise<service$0.Settings> {
+    return $Call.ByID(2772493860, input).then(($result: any) => {
+        return $$createType14($result);
     });
 }
 
@@ -129,27 +177,45 @@ export function SetRate(bytesPerSecond: number): $CancellablePromise<void> {
     return $Call.ByID(3522764902, bytesPerSecond);
 }
 
+export function Settings(): $CancellablePromise<service$0.Settings> {
+    return $Call.ByID(2534530817).then(($result: any) => {
+        return $$createType14($result);
+    });
+}
+
 export function Share(ref: core$0.ObjectRef, seconds: number, $public: boolean): $CancellablePromise<core$0.ShareLink> {
     return $Call.ByID(1159474167, ref, seconds, $public).then(($result: any) => {
-        return $$createType12($result);
+        return $$createType15($result);
+    });
+}
+
+/**
+ * StartCloudflareSignIn opens the authorization page in the default browser.
+ * Opening is best effort: the renderer always shows the authorization URL next
+ * to a manual button, so a browser that refuses to open must not abort the
+ * pending sign-in.
+ */
+export function StartCloudflareSignIn(): $CancellablePromise<service$0.CloudflareSignIn> {
+    return $Call.ByID(1072385601).then(($result: any) => {
+        return $$createType2($result);
     });
 }
 
 export function StartTransfer(req: core$0.TransferRequest): $CancellablePromise<service$0.TransferResult> {
     return $Call.ByID(2880948723, req).then(($result: any) => {
-        return $$createType13($result);
+        return $$createType16($result);
     });
 }
 
 export function Stat(ref: core$0.ObjectRef): $CancellablePromise<core$0.ObjectInfo> {
     return $Call.ByID(776643358, ref).then(($result: any) => {
-        return $$createType14($result);
+        return $$createType17($result);
     });
 }
 
 export function Tasks(): $CancellablePromise<core$0.TransferTask[]> {
     return $Call.ByID(2815206606).then(($result: any) => {
-        return $$createType15($result);
+        return $$createType18($result);
     });
 }
 
@@ -171,13 +237,13 @@ export function TestDraft(input: service$0.ProfileInput): $CancellablePromise<co
  */
 export function UploadData(ref: core$0.ObjectRef, data: string): $CancellablePromise<service$0.TransferResult> {
     return $Call.ByID(73232125, ref, data).then(($result: any) => {
-        return $$createType13($result);
+        return $$createType16($result);
     });
 }
 
 export function UploadPaths(id: string, bucket: string, prefix: string, paths: string[]): $CancellablePromise<service$0.TransferResult[]> {
     return $Call.ByID(3397638711, id, bucket, prefix, paths).then(($result: any) => {
-        return $$createType16($result);
+        return $$createType19($result);
     });
 }
 
@@ -187,26 +253,29 @@ export function UploadPaths(id: string, bucket: string, prefix: string, paths: s
  */
 export function Usage(id: string, bucket: string, prefix: string, requestID: string): $CancellablePromise<core$0.Usage> {
     return $Call.ByID(656214323, id, bucket, prefix, requestID).then(($result: any) => {
-        return $$createType17($result);
+        return $$createType20($result);
     });
 }
 
 // Private type creation functions
 const $$createType0 = core$0.Bucket.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = core$0.OperationPlan.createFrom;
-const $$createType3 = $models.DownloadResult.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = core$0.FindResult.createFrom;
-const $$createType6 = core$0.ListPage.createFrom;
-const $$createType7 = $Create.Array($Create.Any);
-const $$createType8 = core$0.Profile.createFrom;
-const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = core$0.TextPreview.createFrom;
-const $$createType11 = core$0.TransferTask.createFrom;
-const $$createType12 = core$0.ShareLink.createFrom;
-const $$createType13 = service$0.TransferResult.createFrom;
-const $$createType14 = core$0.ObjectInfo.createFrom;
-const $$createType15 = $Create.Array($$createType11);
-const $$createType16 = $Create.Array($$createType13);
-const $$createType17 = core$0.Usage.createFrom;
+const $$createType2 = service$0.CloudflareSignIn.createFrom;
+const $$createType3 = service$0.CloudflareStatus.createFrom;
+const $$createType4 = core$0.Profile.createFrom;
+const $$createType5 = core$0.OperationPlan.createFrom;
+const $$createType6 = $models.DownloadResult.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = core$0.FindResult.createFrom;
+const $$createType9 = core$0.ListPage.createFrom;
+const $$createType10 = $Create.Array($Create.Any);
+const $$createType11 = $Create.Array($$createType4);
+const $$createType12 = core$0.TextPreview.createFrom;
+const $$createType13 = core$0.TransferTask.createFrom;
+const $$createType14 = service$0.Settings.createFrom;
+const $$createType15 = core$0.ShareLink.createFrom;
+const $$createType16 = service$0.TransferResult.createFrom;
+const $$createType17 = core$0.ObjectInfo.createFrom;
+const $$createType18 = $Create.Array($$createType13);
+const $$createType19 = $Create.Array($$createType16);
+const $$createType20 = core$0.Usage.createFrom;

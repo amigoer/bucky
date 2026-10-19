@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,6 +37,9 @@ func (d *DesktopService) ServiceStartup(ctx context.Context, _ application.Servi
 	d.backend.Transfers.OnUpdate = func(task core.TransferTask) {
 		events.Emit("transfer:updated", task)
 		d.releaseStaged(task)
+	}
+	d.backend.OnCloudflareSignIn = func(update service.CloudflareSignIn) {
+		events.Emit("cloudflare:signin", update)
 	}
 	return nil
 }
@@ -240,6 +244,68 @@ func (d *DesktopService) PickDownload(name string) (string, error) {
 func (d *DesktopService) CopyText(text string) error {
 	if !application.Get().Clipboard.SetText(text) {
 		return core.NewError("clipboard", "Cannot copy text to the clipboard")
+	}
+	return nil
+}
+
+func (d *DesktopService) Settings(ctx context.Context) (service.Settings, error) {
+	return d.backend.Settings(ctx)
+}
+
+func (d *DesktopService) SaveSettings(ctx context.Context, input service.Settings) (service.Settings, error) {
+	return d.backend.SaveSettings(ctx, input)
+}
+
+// StartCloudflareSignIn opens the authorization page in the default browser.
+// Opening is best effort: the renderer always shows the authorization URL next
+// to a manual button, so a browser that refuses to open must not abort the
+// pending sign-in.
+func (d *DesktopService) StartCloudflareSignIn(ctx context.Context) (service.CloudflareSignIn, error) {
+	session, err := d.backend.StartCloudflareSignIn(ctx)
+	if err != nil {
+		return session, err
+	}
+	_ = openExternal(session.AuthURL)
+	return session, nil
+}
+
+func (d *DesktopService) CloudflareSignInStatus(ctx context.Context, sessionID string) (service.CloudflareSignIn, error) {
+	return d.backend.CloudflareSignInStatus(ctx, sessionID)
+}
+
+func (d *DesktopService) CancelCloudflareSignIn(ctx context.Context, sessionID string) error {
+	return d.backend.CancelCloudflareSignIn(ctx, sessionID)
+}
+
+func (d *DesktopService) CloudflareBuckets(ctx context.Context, sessionID, accountID string) ([]core.Bucket, error) {
+	return d.backend.CloudflareBuckets(ctx, sessionID, accountID)
+}
+
+func (d *DesktopService) ConnectCloudflare(ctx context.Context, input service.CloudflareConnection) (core.Profile, error) {
+	return d.backend.ConnectCloudflare(ctx, input)
+}
+
+func (d *DesktopService) CloudflareStatus(ctx context.Context, profileID string) (service.CloudflareStatus, error) {
+	return d.backend.CloudflareStatus(ctx, profileID)
+}
+
+func (d *DesktopService) ReauthorizeCloudflare(ctx context.Context, profileID string) (core.Profile, error) {
+	return d.backend.ReauthorizeCloudflare(ctx, profileID)
+}
+
+func (d *DesktopService) DisconnectCloudflare(ctx context.Context, profileID string, confirmed bool) error {
+	return d.backend.DisconnectCloudflare(ctx, profileID, confirmed)
+}
+
+func (d *DesktopService) OpenExternal(raw string) error { return openExternal(raw) }
+
+func openExternal(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Hostname() == "" {
+		return core.Invalid("Only an HTTPS address can be opened in the browser")
+	}
+	if err := application.Get().Browser.OpenURL(parsed.String()); err != nil {
+		return core.NewError("browser", "Cannot open the system browser; open the address manually")
 	}
 	return nil
 }

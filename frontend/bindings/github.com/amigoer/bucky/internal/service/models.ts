@@ -9,6 +9,159 @@ import { Create as $Create } from "@wailsio/runtime";
 // @ts-ignore: Unused imports
 import * as core$0 from "../core/models.js";
 
+export class CloudflareAccount {
+    "id": string;
+    "name": string;
+
+    /** Creates a new CloudflareAccount instance. */
+    constructor($$source: Partial<CloudflareAccount> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CloudflareAccount instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CloudflareAccount {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CloudflareAccount($$parsedSource as Partial<CloudflareAccount>);
+    }
+}
+
+export class CloudflareConnection {
+    "sessionId": string;
+    "profileId": string;
+    "name": string;
+    "accountId": string;
+    "bucket": string;
+    "jurisdiction": string;
+    "publicUrl": string;
+    "readOnly": boolean;
+
+    /** Creates a new CloudflareConnection instance. */
+    constructor($$source: Partial<CloudflareConnection> = {}) {
+        if (!("sessionId" in $$source)) {
+            this["sessionId"] = "";
+        }
+        if (!("profileId" in $$source)) {
+            this["profileId"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("accountId" in $$source)) {
+            this["accountId"] = "";
+        }
+        if (!("bucket" in $$source)) {
+            this["bucket"] = "";
+        }
+        if (!("jurisdiction" in $$source)) {
+            this["jurisdiction"] = "";
+        }
+        if (!("publicUrl" in $$source)) {
+            this["publicUrl"] = "";
+        }
+        if (!("readOnly" in $$source)) {
+            this["readOnly"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CloudflareConnection instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CloudflareConnection {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CloudflareConnection($$parsedSource as Partial<CloudflareConnection>);
+    }
+}
+
+/**
+ * CloudflareSignIn is the renderer-visible state of a pending sign-in. It never
+ * carries an access token.
+ */
+export class CloudflareSignIn {
+    "sessionId": string;
+    "state": string;
+    "authUrl": string;
+    "redirectUri": string;
+    "accounts": CloudflareAccount[];
+    "error"?: core$0.Error | null;
+
+    /** Creates a new CloudflareSignIn instance. */
+    constructor($$source: Partial<CloudflareSignIn> = {}) {
+        if (!("sessionId" in $$source)) {
+            this["sessionId"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+        if (!("authUrl" in $$source)) {
+            this["authUrl"] = "";
+        }
+        if (!("redirectUri" in $$source)) {
+            this["redirectUri"] = "";
+        }
+        if (!("accounts" in $$source)) {
+            this["accounts"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CloudflareSignIn instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CloudflareSignIn {
+        const $$createField4_0 = $$createType1;
+        const $$createField5_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("accounts" in $$parsedSource) {
+            $$parsedSource["accounts"] = $$createField4_0($$parsedSource["accounts"]);
+        }
+        if ("error" in $$parsedSource) {
+            $$parsedSource["error"] = $$createField5_0($$parsedSource["error"]);
+        }
+        return new CloudflareSignIn($$parsedSource as Partial<CloudflareSignIn>);
+    }
+}
+
+export class CloudflareStatus {
+    "authorized": boolean;
+    "tokenName": string;
+    "authorizedAt": string;
+
+    /** Creates a new CloudflareStatus instance. */
+    constructor($$source: Partial<CloudflareStatus> = {}) {
+        if (!("authorized" in $$source)) {
+            this["authorized"] = false;
+        }
+        if (!("tokenName" in $$source)) {
+            this["tokenName"] = "";
+        }
+        if (!("authorizedAt" in $$source)) {
+            this["authorizedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CloudflareStatus instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CloudflareStatus {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CloudflareStatus($$parsedSource as Partial<CloudflareStatus>);
+    }
+}
+
 export class ProfileInput {
     "profile": core$0.Profile;
     "accessKeyId": string;
@@ -33,12 +186,48 @@ export class ProfileInput {
      * Creates a new ProfileInput instance from a string or object.
      */
     static createFrom($$source: any = {}): ProfileInput {
-        const $$createField0_0 = $$createType0;
+        const $$createField0_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("profile" in $$parsedSource) {
             $$parsedSource["profile"] = $$createField0_0($$parsedSource["profile"]);
         }
         return new ProfileInput($$parsedSource as Partial<ProfileInput>);
+    }
+}
+
+/**
+ * Settings holds the non-secret configuration of the desktop application.
+ */
+export class Settings {
+    "cloudflareClientId": string;
+    "cloudflareRedirectUri": string;
+    "cloudflareScopes": string[];
+
+    /** Creates a new Settings instance. */
+    constructor($$source: Partial<Settings> = {}) {
+        if (!("cloudflareClientId" in $$source)) {
+            this["cloudflareClientId"] = "";
+        }
+        if (!("cloudflareRedirectUri" in $$source)) {
+            this["cloudflareRedirectUri"] = "";
+        }
+        if (!("cloudflareScopes" in $$source)) {
+            this["cloudflareScopes"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Settings instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Settings {
+        const $$createField2_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("cloudflareScopes" in $$parsedSource) {
+            $$parsedSource["cloudflareScopes"] = $$createField2_0($$parsedSource["cloudflareScopes"]);
+        }
+        return new Settings($$parsedSource as Partial<Settings>);
     }
 }
 
@@ -56,8 +245,8 @@ export class TransferResult {
      * Creates a new TransferResult instance from a string or object.
      */
     static createFrom($$source: any = {}): TransferResult {
-        const $$createField0_0 = $$createType2;
-        const $$createField1_0 = $$createType4;
+        const $$createField0_0 = $$createType7;
+        const $$createField1_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("task" in $$parsedSource) {
             $$parsedSource["task"] = $$createField0_0($$parsedSource["task"]);
@@ -70,8 +259,13 @@ export class TransferResult {
 }
 
 // Private type creation functions
-const $$createType0 = core$0.Profile.createFrom;
-const $$createType1 = core$0.TransferTask.createFrom;
-const $$createType2 = $Create.Nullable($$createType1);
-const $$createType3 = core$0.OperationPlan.createFrom;
-const $$createType4 = $Create.Nullable($$createType3);
+const $$createType0 = CloudflareAccount.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = core$0.Error.createFrom;
+const $$createType3 = $Create.Nullable($$createType2);
+const $$createType4 = core$0.Profile.createFrom;
+const $$createType5 = $Create.Array($Create.Any);
+const $$createType6 = core$0.TransferTask.createFrom;
+const $$createType7 = $Create.Nullable($$createType6);
+const $$createType8 = core$0.OperationPlan.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);

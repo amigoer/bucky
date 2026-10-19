@@ -11,10 +11,14 @@ import type * as app$0 from "../../../../amigoer/bucky/internal/app/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import type * as core$0 from "../../../../amigoer/bucky/internal/core/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as service$0 from "../../../../amigoer/bucky/internal/service/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "cloudflare:signin": service$0.CloudflareSignIn;
             "files:dropped": string[];
             "transfer:updated": core$0.TransferTask;
             "usage:progress": app$0.UsageProgress;
