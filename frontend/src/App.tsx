@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Browser } from "@/features/browser/Browser";
-import { ConnectionDialog } from "@/features/connection/ConnectionDialog";
+import { ConnectionFlow } from "@/features/connection/ConnectionFlow";
 import { PlanSheet } from "@/features/plan/PlanSheet";
 import { QuickUpload } from "@/features/quick-upload/QuickUpload";
 import { QuickLook } from "@/features/quicklook/QuickLook";
@@ -183,7 +183,7 @@ export default function App() {
         <QuickLook />
         <ShareDialog />
         <PlanSheet />
-        <ConnectionDialog />
+        <ConnectionFlow />
         <QuickUpload />
         <TransferSync />
         <Toaster />

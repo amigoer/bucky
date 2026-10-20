@@ -31,7 +31,7 @@ function DialogOverlay({
   );
 }
 
-/** Centred panel; `placement="top"` drops it from below the title bar like a sheet. */
+/** Centred panel; `top` drops it below the title bar, `full` takes over the window. */
 function DialogContent({
   className,
   children,
@@ -39,7 +39,7 @@ function DialogContent({
   overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  placement?: "center" | "top" | "sheet";
+  placement?: "center" | "top" | "sheet" | "full";
   overlayClassName?: string;
 }) {
   return (
@@ -56,6 +56,8 @@ function DialogContent({
             "top-20 max-h-[calc(100%-100px)] rounded-2xl data-[state=open]:animate-zoom data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           placement === "sheet" &&
             "top-[var(--titlebar-height)] max-h-[calc(100%-var(--titlebar-height)-16px)] rounded-b-2xl data-[state=open]:animate-sheet data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-4",
+          placement === "full" &&
+            "inset-0 max-h-none translate-x-0 translate-y-0 rounded-none bg-background shadow-none data-[state=open]:animate-fade data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
           className,
         )}
         {...props}
