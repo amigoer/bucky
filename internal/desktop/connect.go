@@ -72,57 +72,46 @@ func (a *App) closeConnect() {
 	a.connect = connectState{}
 }
 
-// connectOverlay draws the connection page over the window.
+// connectOverlay draws the connection dialog: the providers on the left,
+// the chosen one's form on the right.
 func (a *App) connectOverlay(c *ui.Context) {
 	state := &a.connect
 	if !state.open {
 		return
 	}
-	ui.Overlay(c, func() {
-		page := ui.Column(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
-			Background(a.pal.background).Modal()
-		page.Children(func() {
-			a.connectHeader(c)
-			ui.Scroll(c).Grow(1).Children(func() {
-				ui.Column(c).MaxWidth(880).Gap(20).Padding(24, 32).Margin(0, ui.Auto).Children(func() {
-					a.connectIntro(c)
-					a.connectForm(c)
-				})
-			})
-		})
-	})
-}
-
-// connectHeader carries the title and the close button.
-func (a *App) connectHeader(c *ui.Context) {
-	state := &a.connect
 	title := a.t("connection.titleNew")
 	if state.editing != "" {
 		title = a.t("connection.titleEdit")
 	}
-	ui.Row(c).Height(56).PaddingX(24).Gap(10).AlignItems(ui.Center).
-		BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
-		ui.Icon(c, iconDatabase).FontSize(18).TextColor(a.pal.primary)
-		ui.Column(c).Grow(1).Children(func() {
-			ui.Text(c, title).FontSize(15).Bold()
-			ui.Text(c, a.t("connection.flow.desc")).FontSize(11.5).TextColor(a.pal.muted)
+	a.dialog(c, 820, false, true, a.closeConnect, func() {
+		ui.Column(c).Shrink(0).BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
+			a.dialogHeader(c, iconDatabase, a.pal.primarySoft, a.pal.primaryText, title,
+				a.t("connection.flow.desc"), nil, a.closeConnect)
 		})
-		if a.iconAction(c, iconX, a.t("connection.flow.close")) {
-			a.closeConnect()
-		}
+		ui.Row(c).Height(520).Shrink(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+			a.providerList(c)
+			ui.Scroll(c).Grow(1).MinWidth(0).Children(func() {
+				ui.Column(c).Gap(14).Padding(18, 22, 22, 22).Children(func() {
+					a.connectForm(c)
+				})
+			})
+		})
+		a.connectFooter(c)
 	})
 }
 
-// connectIntro names the provider.
-func (a *App) connectIntro(c *ui.Context) {
-	ui.Column(c).Gap(8).Children(func() {
-		ui.Text(c, a.t("connection.provider")).FontSize(11.5).Bold().TextColor(a.pal.faint)
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			a.providerTile(c, "r2", 28)
-			ui.Column(c).Grow(1).Children(func() {
-				ui.Text(c, a.t("connection.r2")).FontSize(13).Bold()
-				ui.Text(c, a.t("connection.r2Note")).FontSize(11.5).TextColor(a.pal.muted)
-			})
+// providerList lists the storage services a connection can use.
+func (a *App) providerList(c *ui.Context) {
+	ui.Column(c).Width(220).Shrink(0).Gap(1).Padding(10, 8).Background(a.pal.sidebar).
+		BorderWidth(0, 1, 0, 0).BorderColor(a.pal.border).Children(func() {
+		ui.Text(c, a.t("connection.provider")).FontSize(11).FontWeight(600).TextColor(a.pal.faint).
+			Padding(4, 8, 6, 8)
+		ui.Row(c).Height(34).PaddingX(8).Gap(9).Radius(8).AlignItems(ui.Center).
+			Background(a.pal.primary).Children(func() {
+			a.providerTile(c, "r2", 20)
+			ui.Text(c, a.t("connection.r2")).FontSize(12.5).FontWeight(600).TextColor(a.pal.onPrimary).
+				Grow(1).SingleLine()
+			ui.Icon(c, iconCheck).FontSize(12).TextColor(a.pal.onPrimary)
 		})
 	})
 }
@@ -130,118 +119,172 @@ func (a *App) connectIntro(c *ui.Context) {
 // connectForm shows the manual fields or the Cloudflare sign-in.
 func (a *App) connectForm(c *ui.Context) {
 	state := &a.connect
-	cloudflare := state.profile.CredentialSource == "cloudflare"
-	if cloudflare {
+	ui.Row(c).Gap(8).AlignItems(ui.End).Children(func() {
+		ui.Text(c, a.t("connection.r2")).FontSize(14).FontWeight(650)
+		ui.Text(c, a.t("connection.r2Note")).FontSize(11.5).TextColor(a.pal.faint).SingleLine()
+	})
+	if state.profile.CredentialSource == "cloudflare" {
 		a.cloudflareForm(c)
 	} else {
 		a.manualForm(c)
 	}
 	if state.err != nil {
-		a.planNotice(c, a.pal.destructiveBg, a.pal.destructive, a.errorText(state.err))
+		a.notice(c, a.pal.destructiveBg, a.pal.destructive, a.errorText(state.err))
 	}
 	if state.notice != "" {
-		a.planNotice(c, a.pal.successBg, a.pal.successText, state.notice)
+		a.notice(c, a.pal.successBg, a.pal.successText, state.notice)
 	}
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		if ui.PrimaryButton(c, a.t("common.save")).Clicked() {
-			a.saveConnect()
-		}
-		if ui.Button(c, a.t("connection.test")).Disabled(state.testing).Clicked() {
-			a.testConnect()
-		}
-		if state.testing {
-			ui.Spinner(c).Size(14, 14)
-		}
-		ui.Spacer(c)
+}
+
+// connectFooter carries the connection's actions.
+func (a *App) connectFooter(c *ui.Context) {
+	state := &a.connect
+	a.dialogFooter(c, func() {
 		if state.editing != "" {
-			if ui.Button(c, a.t("connection.delete")).Clicked() {
+			label := a.t("connection.delete")
+			remove := a.plainButton(c, label, 0, 30).PaddingX(10)
+			if remove.Hovered() {
+				remove.Background(a.pal.destructiveBg)
+			}
+			remove.Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, iconTrash).FontSize(14).TextColor(a.pal.destructive)
+					ui.Text(c, label).FontSize(13).TextColor(a.pal.destructive)
+				})
+			})
+			if remove.Clicked() {
 				a.askRemoveProfile()
 			}
 		}
+		if a.secondaryButton(c, nil, a.t("connection.test")).Height(30).Disabled(state.testing).Clicked() {
+			a.testConnect()
+		}
+		if state.testing {
+			ui.Spinner(c).Size(12, 12).Label(a.t("connection.testing"))
+		}
+		ui.Spacer(c)
+		if a.secondaryButton(c, nil, a.t("common.cancel")).Height(30).Clicked() {
+			a.closeConnect()
+			return
+		}
+		if a.primaryAction(c, nil, a.t("common.save"), false).Height(30).Clicked() {
+			a.saveConnect()
+		}
+	})
+}
+
+// formField is a labeled control with an optional hint under it.
+func (a *App) formField(c *ui.Context, label, hint string, hintColor ui.Color, control func()) {
+	ui.Column(c).Gap(6).Children(func() {
+		ui.Text(c, label).FontSize(12).TextColor(a.pal.muted)
+		control()
+		if hint != "" {
+			ui.Text(c, hint).FontSize(11.5).TextColor(hintColor)
+		}
+	})
+}
+
+// formPair puts two fields side by side.
+func (a *App) formPair(c *ui.Context, left, right func()) {
+	ui.Row(c).Gap(12).AlignItems(ui.Start).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Children(left)
+		ui.Column(c).Grow(1).MinWidth(0).Children(right)
+	})
+}
+
+// readOnlyToggle switches a connection to read-only, with what that means.
+func (a *App) readOnlyToggle(c *ui.Context, value *bool, title, hint string) {
+	card := ui.Row(c).Gap(10).Padding(12).Radius(10).AlignItems(ui.Start).Border(1, a.pal.border)
+	if *value {
+		card.Background(a.pal.warningBg)
+	}
+	card.Children(func() {
+		ui.Switch(c, value).Label(title)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+			ui.Text(c, title).FontSize(12.5).FontWeight(500)
+			ui.Text(c, hint).FontSize(11.5).TextColor(a.pal.faint)
+		})
 	})
 }
 
 // manualForm is the S3 key form.
 func (a *App) manualForm(c *ui.Context) {
 	state := &a.connect
-	a.settingsGroup(c, a.t("connection.manual.facts"), func() {
-		a.fieldRow(c, a.t("connection.name"), func() {
-			ui.TextInput(c, &state.name).Placeholder(a.t("connection.name")).Width(320)
-		})
-		a.fieldRow(c, a.t("connection.accountId"), func() {
-			input := ui.TextInput(c, &state.accountID).
-				Placeholder(a.t("connection.accountId")).Width(320)
-			if len(state.accountID) > 0 && len(state.accountID) != 32 {
-				input.Border(1, a.pal.destructive)
+	a.formField(c, a.t("connection.name"), "", a.pal.faint, func() {
+		ui.TextInput(c, &state.name).Placeholder(a.t("connection.r2")).FillWidth()
+	})
+	sourceHint := a.t("connection.keychainHint")
+	if state.credentialSource == "environment" {
+		sourceHint = a.t("connection.environmentHint")
+	}
+	a.formField(c, a.t("connection.credentialSource"), sourceHint, a.pal.faint, func() {
+		sources := []string{"keychain", "environment"}
+		labels := []string{a.t("connection.keychain"), a.t("connection.environment")}
+		index := 0
+		for i, name := range sources {
+			if name == state.credentialSource {
+				index = i
 			}
-		})
-		a.fieldRow(c, a.t("connection.credentialSource"), func() {
-			sources := []string{"keychain", "environment"}
-			labels := []string{a.t("connection.keychain"), a.t("connection.environment")}
-			index := 0
-			for i, name := range sources {
-				if name == state.credentialSource {
-					index = i
-				}
-			}
-			seg := ui.Segmented(c, &index, labels...).Label(a.t("connection.credentialSource")).Width(300)
-			if seg.Changed() && index >= 0 && index < len(sources) {
+		}
+		ui.Row(c).Children(func() {
+			if a.segments(c, &index, a.t("connection.credentialSource"), labels) &&
+				index >= 0 && index < len(sources) {
 				state.credentialSource = sources[index]
 			}
 		})
-		if state.credentialSource == "keychain" {
-			a.fieldRow(c, a.t("connection.accessKeyId"), func() {
-				placeholder := a.t("connection.accessKeyId")
-				if state.keychainSaved && state.editing != "" {
-					placeholder = a.t("connection.savedInKeychain")
-				}
-				ui.TextInput(c, &state.accessKeyID).Placeholder(placeholder).Width(320)
-			})
-			a.fieldRow(c, a.t("connection.secretAccessKey"), func() {
-				placeholder := a.t("connection.secretAccessKey")
-				if state.keychainSaved && state.editing != "" {
-					placeholder = a.t("connection.savedInKeychain")
-				}
-				ui.TextInput(c, &state.secretKey).Placeholder(placeholder).Password().Width(320)
-			})
-			ui.Row(c).Padding(0, 14).Children(func() {
-				ui.Text(c, a.t("connection.keychainHint")).FontSize(11).TextColor(a.pal.faint)
-			})
-		} else {
-			ui.Row(c).Padding(0, 14).Children(func() {
-				ui.Text(c, a.t("connection.environmentHint")).FontSize(11).TextColor(a.pal.faint)
-			})
+	})
+	a.formPair(c, func() {
+		invalid := len(state.accountID) > 0 && len(state.accountID) != 32
+		hint, color := "", a.pal.faint
+		if invalid {
+			hint, color = a.t("connection.accountIdError"), a.pal.destructive
 		}
-		a.fieldRow(c, a.t("connection.jurisdiction"), func() {
+		a.formField(c, a.t("connection.accountId"), hint, color, func() {
+			input := ui.TextInput(c, &state.accountID).Placeholder(a.t("connection.accountId")).FillWidth()
+			if invalid {
+				input.Border(1, a.pal.destructive)
+			}
+		})
+	}, func() {
+		a.formField(c, a.t("connection.jurisdiction"), "", a.pal.faint, func() {
 			options := []string{"default", "eu", "fedramp"}
 			current := state.jurisdiction
 			if current == "" {
 				current = "default"
 			}
-			select_ := ui.Select(c, &current, options).Label(a.t("connection.jurisdiction")).Width(200)
-			if select_.Changed() {
+			if ui.Select(c, &current, options).Label(a.t("connection.jurisdiction")).FillWidth().Changed() {
 				state.jurisdiction = current
 			}
 		})
-		a.fieldRow(c, a.t("connection.bucket"), func() {
-			ui.TextInput(c, &state.bucket).Placeholder(a.t("connection.bucket")).Width(320)
-		})
-		ui.Row(c).Padding(0, 14).Children(func() {
-			ui.Text(c, a.t("connection.bucketHint")).FontSize(11).TextColor(a.pal.faint)
-		})
-		a.fieldRow(c, a.t("connection.publicUrl"), func() {
-			ui.TextInput(c, &state.publicURL).Placeholder("https://").Width(320)
-		})
-		a.fieldRow(c, a.t("connection.readOnly"), func() {
-			ui.Switch(c, &state.readOnly).Label(a.t("connection.readOnly"))
-		})
-		ui.Row(c).Padding(0, 14).Children(func() {
-			ui.Text(c, a.t("connection.readOnlyHint")).FontSize(11).TextColor(a.pal.faint)
-		})
 	})
+	if state.credentialSource == "keychain" {
+		placeholder := func(label string) string {
+			if state.keychainSaved && state.editing != "" {
+				return a.t("connection.savedInKeychain")
+			}
+			return label
+		}
+		a.formPair(c, func() {
+			a.formField(c, a.t("connection.accessKeyId"), "", a.pal.faint, func() {
+				ui.TextInput(c, &state.accessKeyID).Placeholder(placeholder(a.t("connection.accessKeyId"))).
+					FillWidth()
+			})
+		}, func() {
+			a.formField(c, a.t("connection.secretAccessKey"), "", a.pal.faint, func() {
+				ui.TextInput(c, &state.secretKey).Placeholder(placeholder(a.t("connection.secretAccessKey"))).
+					Password().FillWidth()
+			})
+		})
+	}
+	a.settingsDivider(c)
+	a.formField(c, a.t("connection.bucket"), a.t("connection.bucketHint"), a.pal.faint, func() {
+		ui.TextInput(c, &state.bucket).Placeholder("—").FillWidth()
+	})
+	a.publicURLField(c, &state.publicURL)
+	a.readOnlyToggle(c, &state.readOnly, a.t("connection.readOnly"), a.t("connection.readOnlyHint"))
 	if state.editing != "" {
-		ui.Row(c).Gap(8).Children(func() {
-			if ui.Button(c, a.t("connection.cloudflare.continue")).Clicked() {
+		ui.Row(c).Children(func() {
+			if a.secondaryButton(c, nil, a.t("connection.cloudflare.continue")).Clicked() {
 				state.profile.CredentialSource = "cloudflare"
 				state.profile.Bucket = state.bucket
 				a.beginCloudflareSignIn()
@@ -250,36 +293,50 @@ func (a *App) manualForm(c *ui.Context) {
 	}
 }
 
+// publicURLField takes the address objects are served from publicly.
+func (a *App) publicURLField(c *ui.Context, value *string) {
+	invalid := *value != "" && !strings.HasPrefix(*value, "https://")
+	hint, color := a.t("connection.publicUrlHint"), a.pal.faint
+	if invalid {
+		hint, color = a.t("connection.publicUrlError"), a.pal.destructive
+	}
+	a.formField(c, a.t("connection.publicUrl"), hint, color, func() {
+		input := ui.TextInput(c, value).Placeholder("https://cdn.example.com").FillWidth()
+		if invalid {
+			input.Border(1, a.pal.destructive)
+		}
+	})
+}
+
 // cloudflareForm is the sign-in flow of a Cloudflare connection.
 func (a *App) cloudflareForm(c *ui.Context) {
 	state := &a.connect
-	a.settingsGroup(c, a.t("connection.cloudflare.authorization"), func() {
-		switch {
-		case state.signInBusy:
-			ui.Column(c).Padding(16).Gap(10).Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Spinner(c).Size(14, 14)
-					ui.Text(c, a.t("connection.cloudflare.waiting")).FontSize(12.5)
-				})
-				ui.Text(c, a.t("connection.cloudflare.waitingHint")).FontSize(11.5).
-					TextColor(a.pal.muted)
-				if state.signIn.AuthURL != "" {
-					ui.Text(c, a.t("connection.cloudflare.authUrl")).FontSize(11).
-						TextColor(a.pal.faint)
-					ui.Text(c, state.signIn.AuthURL).FontSize(11).Font("monospace").
-						TextColor(a.pal.muted).Selectable().SingleLine()
-					ui.Row(c).Gap(8).Children(func() {
-						if ui.Button(c, a.t("connection.cloudflare.openBrowser")).Clicked() {
-							a.openExternally(state.signIn.AuthURL)
-						}
-						if ui.Button(c, a.t("connection.cloudflare.cancel")).Clicked() {
-							a.cancelSignIn()
-						}
-					})
-				}
+	switch {
+	case state.signInBusy:
+		ui.Column(c).Gap(10).Padding(14, 16).Radius(10).Border(1, a.pal.border).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Spinner(c).Size(12, 12)
+				ui.Text(c, a.t("connection.cloudflare.waiting")).FontSize(12.5).FontWeight(600)
 			})
-		case len(state.accounts) > 0:
-			a.fieldRow(c, a.t("connection.cloudflare.account"), func() {
+			ui.Text(c, a.t("connection.cloudflare.waitingHint")).FontSize(12).TextColor(a.pal.muted)
+			if state.signIn.AuthURL != "" {
+				a.formField(c, a.t("connection.cloudflare.authUrl"), "", a.pal.faint, func() {
+					ui.Text(c, state.signIn.AuthURL).FontSize(11.5).Font("monospace").
+						TextColor(a.pal.muted).Selectable().SingleLine()
+				})
+				ui.Row(c).Gap(8).Children(func() {
+					if a.secondaryButton(c, iconExternalLink, a.t("connection.cloudflare.openBrowser")).Clicked() {
+						a.openExternally(state.signIn.AuthURL)
+					}
+					if a.secondaryButton(c, nil, a.t("connection.cloudflare.cancel")).Clicked() {
+						a.cancelSignIn()
+					}
+				})
+			}
+		})
+	case len(state.accounts) > 0:
+		a.formPair(c, func() {
+			a.formField(c, a.t("connection.cloudflare.account"), "", a.pal.faint, func() {
 				options := make([]string, 0, len(state.accounts))
 				for _, account := range state.accounts {
 					options = append(options, account.Name)
@@ -290,9 +347,7 @@ func (a *App) cloudflareForm(c *ui.Context) {
 						current = options[i]
 					}
 				}
-				select_ := ui.Select(c, &current, options).
-					Label(a.t("connection.cloudflare.account")).Width(260)
-				if select_.Changed() {
+				if ui.Select(c, &current, options).Label(a.t("connection.cloudflare.account")).FillWidth().Changed() {
 					for _, account := range state.accounts {
 						if account.Name == current && account.ID != state.accountID2 {
 							state.accountID2 = account.ID
@@ -303,10 +358,10 @@ func (a *App) cloudflareForm(c *ui.Context) {
 					}
 				}
 			})
-			a.fieldRow(c, a.t("connection.cloudflare.bucket"), func() {
+		}, func() {
+			a.formField(c, a.t("connection.cloudflare.bucket"), a.t("connection.cloudflare.bucketHint"), a.pal.faint, func() {
 				if len(state.buckets) == 0 {
-					ui.Text(c, a.t("connection.cloudflare.noBuckets")).FontSize(12).
-						TextColor(a.pal.muted)
+					ui.Text(c, a.t("connection.cloudflare.noBuckets")).FontSize(12).TextColor(a.pal.muted).Height(30)
 					return
 				}
 				options := make([]string, 0, len(state.buckets))
@@ -317,72 +372,60 @@ func (a *App) cloudflareForm(c *ui.Context) {
 				if current == "" {
 					current = options[0]
 				}
-				select_ := ui.Select(c, &current, options).
-					Label(a.t("connection.cloudflare.bucket")).Width(260)
-				if select_.Changed() {
+				if ui.Select(c, &current, options).Label(a.t("connection.cloudflare.bucket")).FillWidth().Changed() {
 					state.bucket2 = current
 				}
 			})
-			a.fieldRow(c, a.t("connection.name"), func() {
-				ui.TextInput(c, &state.name).Placeholder(a.t("connection.name")).Width(320)
+		})
+		a.formField(c, a.t("connection.name"), "", a.pal.faint, func() {
+			ui.TextInput(c, &state.name).Placeholder(a.t("connection.r2")).FillWidth()
+		})
+		a.publicURLField(c, &state.publicURL)
+		a.readOnlyToggle(c, &state.readOnly2, a.t("connection.cloudflare.readOnly"),
+			a.t("connection.cloudflare.readOnlyHint"))
+		ui.Text(c, a.t("connection.cloudflare.tokenHint")).FontSize(11.5).TextColor(a.pal.faint)
+		ui.Row(c).Gap(8).Children(func() {
+			if a.primaryAction(c, nil, a.t("connection.cloudflare.connect"), false).Clicked() {
+				a.connectCloudflare()
+			}
+			if a.secondaryButton(c, nil, a.t("connection.cloudflare.useKeys")).Clicked() {
+				state.profile.CredentialSource = "keychain"
+				state.accounts = nil
+				state.buckets = nil
+			}
+		})
+	case state.editing != "" && state.status.Authorized:
+		ui.Column(c).Gap(8).Padding(14, 16).Radius(10).Border(1, a.pal.border).Children(func() {
+			ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, iconCheck).FontSize(13).TextColor(a.pal.successText)
+				ui.Text(c, a.t("connection.cloudflare.authorized")).FontSize(12.5).FontWeight(600)
 			})
-			a.fieldRow(c, a.t("connection.publicUrl"), func() {
-				ui.TextInput(c, &state.publicURL).Placeholder("https://").Width(320)
-			})
-			a.fieldRow(c, a.t("connection.cloudflare.readOnly"), func() {
-				ui.Switch(c, &state.readOnly2).Label(a.t("connection.cloudflare.readOnly"))
-			})
-			ui.Row(c).Padding(0, 14).Children(func() {
-				ui.Text(c, a.t("connection.cloudflare.tokenHint")).FontSize(11).
-					TextColor(a.pal.faint)
-			})
-			ui.Row(c).Gap(8).Padding(0, 14).Children(func() {
-				if ui.PrimaryButton(c, a.t("connection.cloudflare.connect")).Clicked() {
-					a.connectCloudflare()
+			ui.Text(c, a.tf("connection.cloudflare.authorizedNote", "token", state.status.TokenName)).
+				FontSize(12).TextColor(a.pal.muted)
+			ui.Row(c).Gap(8).Children(func() {
+				if a.secondaryButton(c, iconRefresh, a.t("connection.cloudflare.reauthorize")).Clicked() {
+					a.reauthorizeCloudflare()
 				}
-				if ui.Button(c, a.t("connection.cloudflare.useKeys")).Clicked() {
-					state.profile.CredentialSource = "keychain"
-					state.accounts = nil
-					state.buckets = nil
+				if a.secondaryButton(c, nil, a.t("connection.cloudflare.disconnect")).Clicked() {
+					a.askDisconnectCloudflare()
 				}
 			})
-		case state.editing != "" && state.status.Authorized:
-			ui.Column(c).Padding(16).Gap(8).Children(func() {
-				ui.Text(c, a.t("connection.cloudflare.authorized")).FontSize(12.5).Bold()
-				ui.Text(c, a.tf("connection.cloudflare.authorizedNote",
-					"token", state.status.TokenName)).FontSize(11.5).TextColor(a.pal.muted)
-				ui.Row(c).Gap(8).Children(func() {
-					if ui.Button(c, a.t("connection.cloudflare.reauthorize")).Clicked() {
-						a.reauthorizeCloudflare()
-					}
-					if ui.Button(c, a.t("connection.cloudflare.disconnect")).Clicked() {
-						a.askDisconnectCloudflare()
-					}
-				})
-			})
-		default:
-			ui.Column(c).Padding(16).Gap(8).Children(func() {
-				ui.Text(c, a.t("connection.cloudflare.signInDesc")).FontSize(12).
-					TextColor(a.pal.muted)
-				ui.Text(c, a.t("connection.cloudflare.prereq")).FontSize(11.5).
-					TextColor(a.pal.faint)
-				if ui.PrimaryButton(c, a.t("connection.cloudflare.continue")).Clicked() {
+		})
+	default:
+		ui.Column(c).Gap(10).Padding(14, 16).Radius(10).Border(1, a.pal.border).Children(func() {
+			ui.Text(c, a.t("connection.cloudflare.signInDesc")).FontSize(12.5).LineHeight(1.5).
+				TextColor(a.pal.muted)
+			ui.Text(c, a.t("connection.cloudflare.prereq")).FontSize(11.5).TextColor(a.pal.faint)
+			ui.Row(c).Children(func() {
+				if a.primaryAction(c, nil, a.t("connection.cloudflare.continue"), false).Clicked() {
 					a.beginCloudflareSignIn()
 				}
 			})
-		}
-	})
-	if state.signInErr != nil {
-		a.planNotice(c, a.pal.destructiveBg, a.pal.destructive, a.errorText(state.signInErr))
+		})
 	}
-}
-
-// fieldRow is a labelled row of the connection form.
-func (a *App) fieldRow(c *ui.Context, label string, control func()) {
-	ui.Row(c).Padding(10, 14).Gap(16).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, label).FontSize(12.5).Grow(1)
-		control()
-	})
+	if state.signInErr != nil {
+		a.notice(c, a.pal.destructiveBg, a.pal.destructive, a.errorText(state.signInErr))
+	}
 }
 
 // saveConnect stores the connection.

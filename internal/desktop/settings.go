@@ -93,19 +93,6 @@ func (a *App) settingsCard(c *ui.Context, rows func()) ui.Element {
 	return card
 }
 
-// settingsGroup is a titled card of rows, as the connection and quick
-// upload panels group their fields.
-func (a *App) settingsGroup(c *ui.Context, title string, rows func()) {
-	ui.Column(c).Gap(2).Children(func() {
-		if title != "" {
-			ui.Text(c, title).FontSize(11.5).Bold().TextColor(a.pal.faint).Padding(0, 4, 4, 4)
-		}
-		card := ui.Column(c).Gap(2).Padding(4).Radius(12).
-			Background(a.pal.card).Border(1, a.pal.border)
-		card.Children(rows)
-	})
-}
-
 func (a *App) settingsDivider(c *ui.Context) {
 	ui.Box(c).Height(1).Background(a.pal.border)
 }

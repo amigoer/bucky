@@ -303,3 +303,22 @@ func TestConfirmView(t *testing.T) {
 	}
 	snapshot(t, "18-confirm", app, false)
 }
+
+func TestPreviewView(t *testing.T) {
+	app := newTestApp(t)
+	withProfile(app)
+	app.location = &Location{ProfileID: "p1", Bucket: "assets"}
+	rows := sampleEntries()
+	app.browse.rows = rows
+	app.browse.shown = rows
+	app.preview = previewState{
+		open: true, key: "notes.md", list: rows,
+		info: core.ObjectInfo{
+			ObjectRef: core.ObjectRef{ProfileID: "p1", Bucket: "assets", Key: "notes.md"},
+			Size:      12_800, ETag: "\"9b2cf535f27731c974343645a3985328\"", LastModified: time.Now(),
+			ContentType: "text/markdown", Metadata: map[string]string{"x-amz-meta-author": "amigoer"},
+		},
+		text: core.TextPreview{Text: "# Release notes\n\n- Native desktop shell\n- Plans before every delete\n", ContentType: "text/markdown"},
+	}
+	snapshot(t, "19-preview-text", app, false)
+}

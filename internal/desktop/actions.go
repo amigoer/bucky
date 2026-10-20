@@ -111,35 +111,28 @@ func (a *App) confirmOverlay(c *ui.Context) {
 	if !state.open {
 		return
 	}
-	ui.Overlay(c, func() {
-		backdrop := ui.Row(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
-			Justify(ui.Center).AlignItems(ui.Center).Background(a.pal.scrim).Modal()
-		backdrop.Children(func() {
-			panel := ui.Column(c).Width(400).Gap(14).Padding(22).Radius(16).
-				Background(a.pal.background).Border(1, a.pal.borderStrong).
-				Shadow(0, 24, 60, 0, ui.RGBA(0, 0, 0, 0.22))
-			panel.Children(func() {
-				ui.Text(c, state.title).FontSize(14).Bold()
-				ui.Text(c, state.message).FontSize(12.5).TextColor(a.pal.muted)
-				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-					if ui.Button(c, a.t("common.cancel")).Clicked() {
-						a.confirm = confirmState{}
-					}
-					button := ui.PrimaryButton(c, state.confirm)
-					if state.destructive {
-						button.Background(a.pal.destructive)
-					}
-					if button.Clicked() {
-						action := state.action
-						a.confirm = confirmState{}
-						if action != nil {
-							action()
-						}
-					}
-				})
-			})
-			if backdrop.OverlayShortcut(0, ui.KeyEscape) {
-				a.confirm = confirmState{}
+	cancel := func() { a.confirm = confirmState{} }
+	a.dialog(c, 420, false, false, cancel, func() {
+		ui.Column(c).Gap(8).Padding(20, 20, 18, 20).Children(func() {
+			ui.Text(c, state.title).FontSize(15).FontWeight(650)
+			ui.Text(c, state.message).FontSize(12.5).LineHeight(1.5).TextColor(a.pal.muted)
+		})
+		a.dialogFooter(c, func() {
+			ui.Spacer(c)
+			if a.secondaryButton(c, nil, a.t("common.cancel")).Height(30).Clicked() {
+				cancel()
+				return
+			}
+			button := a.primaryAction(c, nil, state.confirm, false).Height(30)
+			if state.destructive {
+				button.Background(a.pal.destructive)
+			}
+			if button.Clicked() {
+				action := state.action
+				cancel()
+				if action != nil {
+					action()
+				}
 			}
 		})
 	})

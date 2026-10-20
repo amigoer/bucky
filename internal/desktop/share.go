@@ -70,185 +70,201 @@ func (a *App) buildShare() {
 	}()
 }
 
+// shareLinksShown is how many links the dialog lists; Copy all takes the
+// rest too.
+const shareLinksShown = 6
+
 // shareOverlay draws the share dialog over the window.
 func (a *App) shareOverlay(c *ui.Context) {
 	state := &a.share
 	if !state.open {
 		return
 	}
-	ui.Overlay(c, func() {
-		backdrop := ui.Row(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
-			Justify(ui.Center).AlignItems(ui.Center).Background(a.pal.scrim)
-		backdrop.Children(func() {
-			panel := ui.Column(c).Width(620).MaxHeightPercent(84).Radius(16).
-				Background(a.pal.background).Border(1, a.pal.borderStrong).
-				Shadow(0, 24, 60, 0, ui.RGBA(0, 0, 0, 0.22))
-			panel.Clip()
-			panel.Children(func() {
-				a.shareHeader(c)
-				a.shareOptions(c)
-				ui.Column(c).Grow(1).Children(func() { a.shareBody(c) })
-				a.shareFooter(c)
-			})
-			if backdrop.OverlayShortcut(0, ui.KeyEscape) {
-				a.share = shareState{}
-			}
-		})
-	})
-}
-
-func (a *App) shareHeader(c *ui.Context) {
-	state := &a.share
-	ui.Row(c).Height(52).PaddingX(18).Gap(10).AlignItems(ui.Center).
-		BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
-		ui.Icon(c, iconShare).FontSize(18).TextColor(a.pal.primary)
-		ui.Column(c).Grow(1).Children(func() {
-			ui.Text(c, a.t("menu.share")).FontSize(14).Bold()
-			ui.Text(c, a.tn("share.objects", len(state.entries), "count", len(state.entries))).
-				FontSize(11.5).TextColor(a.pal.muted)
-		})
-		if a.iconAction(c, iconX, a.t("common.close")) {
-			a.share = shareState{}
-		}
-	})
-}
-
-// shareOptions chooses the link kind and its lifetime.
-func (a *App) shareOptions(c *ui.Context) {
-	state := &a.share
-	profile := a.currentProfile()
-	hasPublic := profile != nil && profile.PublicURL != ""
-	ui.Column(c).Gap(10).Padding(14, 18).
-		BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
-		kinds := []string{"temporary"}
-		labels := []string{a.t("share.temporary")}
-		if hasPublic {
-			kinds = append(kinds, "public")
-			labels = append(labels, a.t("share.public"))
-		}
-		index := 0
-		for i, kind := range kinds {
-			if kind == state.mode {
-				index = i
+	closeShare := func() { a.share = shareState{} }
+	a.dialog(c, 540, false, false, closeShare, func() {
+		title := a.tn("share.objects", len(state.entries), "count", len(state.entries))
+		if len(state.entries) == 1 {
+			title = state.entries[0].name
+			if state.entries[0].folder {
+				title += "/"
 			}
 		}
-		seg := ui.Segmented(c, &index, labels...).Label(a.t("menu.share")).Width(260)
-		if seg.Changed() && index >= 0 && index < len(kinds) && kinds[index] != state.mode {
-			state.mode = kinds[index]
-			a.buildShare()
+		subtitle := state.location.Bucket + "/" + state.location.Prefix
+		if profile := a.profileOf(state.location.ProfileID); profile != nil {
+			subtitle = profile.Name + " · " + subtitle
 		}
-		if state.mode == "temporary" {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, a.t("share.validFor")).FontSize(12).TextColor(a.pal.muted)
-				durationLabels := []string{
-					a.t("share.d15m"), a.t("share.d1h"), a.t("share.d1d"), a.t("share.d7d"),
-				}
-				current := durationLabels[1]
-				for i, seconds := range shareDurations {
-					if seconds == state.seconds {
-						current = durationLabels[i]
-					}
-				}
-				select_ := ui.Select(c, &current, durationLabels).
-					Label(a.t("share.validFor")).Width(120)
-				if select_.Changed() {
-					for i, label := range durationLabels {
-						if label == current && shareDurations[i] != state.seconds {
-							state.seconds = shareDurations[i]
-							a.buildShare()
-							return
-						}
-					}
-				}
-			})
-		} else {
-			ui.Text(c, a.t("share.publicWarn")).FontSize(11.5).TextColor(a.pal.warningText)
-		}
-		if !hasPublic {
-			ui.Text(c, a.t("share.noPublic")).FontSize(11.5).TextColor(a.pal.faint)
-		}
+		a.dialogHeader(c, iconLink, a.pal.primarySoft, a.pal.primaryText, title, subtitle, nil, closeShare)
+		ui.Column(c).PaddingX(18).Shrink(0).Children(func() { a.shareTabs(c) })
+		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+			ui.Column(c).Gap(12).Padding(14, 18, 18, 18).Children(func() { a.shareBody(c) })
+		})
 	})
 }
 
-// shareBody lists the links made for the choice.
-func (a *App) shareBody(c *ui.Context) {
+// shareTabs chooses between a temporary and a public link.
+func (a *App) shareTabs(c *ui.Context) {
 	state := &a.share
-	switch {
-	case state.busy:
-		ui.Column(c).Height(200).Center().Gap(10).Children(func() {
-			ui.Spinner(c).Label(a.t("share.preparing"))
-			ui.Text(c, a.t("share.preparing")).FontSize(12.5).TextColor(a.pal.muted)
-		})
-	case state.err != nil:
-		ui.Column(c).Height(200).Center().Padding(24).Children(func() {
-			ui.Text(c, a.errorText(state.err)).FontSize(12.5).TextColor(a.pal.muted).
-				TextAlign(ui.Center)
-		})
-	default:
-		ui.Scroll(c).MaxHeight(320).Padding(12, 18).Children(func() {
-			ui.Column(c).Gap(8).Children(func() {
-				for i := range state.links {
-					a.shareRow(c, &state.links[i])
-				}
+	kinds := []string{"temporary", "public"}
+	labels := []string{a.t("share.temporary"), a.t("share.public")}
+	index := 0
+	if state.mode == "public" {
+		index = 1
+	}
+	seg := ui.SegmentedBase(c, &index, len(kinds))
+	seg.Track.Padding(2).Radius(8).Background(a.pal.mutedFill).Label(a.t("menu.share")).Children(func() {
+		for i, label := range labels {
+			glyph := iconClock
+			if i == 1 {
+				glyph = iconLink
+			}
+			segment := seg.Segment(i).Grow(1).Height(24).Center().Radius(6)
+			color, weight := a.pal.muted, 500
+			if i == index {
+				segment.Background(a.pal.thumb).Shadow(0, 1, 2, 0, a.pal.thumbShadow)
+				color, weight = a.pal.text, 600
+			}
+			segment.Children(func() {
+				ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, glyph).FontSize(12).TextColor(color)
+					ui.Text(c, label).FontSize(12).FontWeight(weight).TextColor(color)
+				})
 			})
-		})
+		}
+	})
+	if seg.Track.Changed() && kinds[index] != state.mode {
+		state.mode = kinds[index]
+		if state.mode == "public" && !a.hasPublicURL() {
+			state.links, state.err, state.busy = nil, nil, false
+			return
+		}
+		a.buildShare()
 	}
 }
 
-// shareRow is one link with its copy button.
-func (a *App) shareRow(c *ui.Context, link *shareLink) {
-	ui.Column(c).Gap(6).Padding(10, 12).Radius(10).
-		Background(a.pal.card).Border(1, a.pal.border).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconLink).FontSize(14).TextColor(a.pal.muted)
-			ui.Text(c, link.entry.name).FontSize(12.5).Bold().SingleLine().Grow(1)
-			if link.err != nil {
-				ui.Text(c, a.errorText(link.err)).FontSize(11).TextColor(a.pal.destructive)
-			} else {
-				copy := ui.Button(c, a.t("common.copy")).FontSize(11.5)
-				if copy.Clicked() {
-					a.copyText(c, link.url)
+// hasPublicURL reports whether the shared objects' connection serves them
+// at a public address.
+func (a *App) hasPublicURL() bool {
+	profile := a.profileOf(a.share.location.ProfileID)
+	return profile != nil && profile.PublicURL != ""
+}
+
+// shareBody shows the settings of the link kind and the links made.
+func (a *App) shareBody(c *ui.Context) {
+	state := &a.share
+	if state.mode == "public" {
+		if !a.hasPublicURL() {
+			ui.Row(c).Gap(8).Padding(9, 12).Radius(9).AlignItems(ui.Center).
+				Background(a.pal.mutedFill).Children(func() {
+				ui.Icon(c, iconAlertTriangle).FontSize(13).TextColor(a.pal.muted)
+				ui.Text(c, a.t("share.noPublic")).FontSize(12.5).TextColor(a.pal.muted).Grow(1).MinWidth(0)
+				if a.secondaryButton(c, nil, a.t("states.editConnection")).Height(26).Clicked() {
+					id := state.location.ProfileID
+					a.share = shareState{}
+					a.openConnect(id)
 				}
+			})
+			return
+		}
+		a.notice(c, a.pal.warningBg, a.pal.warningText, a.t("share.publicWarn"))
+	} else {
+		a.shareExpiry(c)
+	}
+	switch {
+	case state.busy:
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Spinner(c).Size(12, 12).Label(a.t("share.preparing"))
+			ui.Text(c, a.t("share.preparing")).FontSize(12.5).TextColor(a.pal.muted)
+		})
+		return
+	case state.err != nil:
+		a.notice(c, a.pal.destructiveBg, a.pal.destructive, a.errorText(state.err))
+		return
+	}
+	multi := len(state.links) > 1 || len(state.entries) == 1 && state.entries[0].folder
+	if multi {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			text := a.tf("share.multi", "count", len(state.links))
+			if len(state.entries) == 1 && state.entries[0].folder {
+				text = a.tf("share.folder", "count", len(state.links))
+			}
+			ui.Text(c, text).FontSize(12).TextColor(a.pal.muted).Grow(1)
+			if a.secondaryButton(c, iconCopy, a.t("common.copyAll")).Height(26).Clicked() {
+				a.copyText(c, joinLines(linkURLs(state.links)))
 			}
 		})
-		if link.url != "" {
-			ui.Text(c, link.url).FontSize(11).Font("monospace").
-				TextColor(a.pal.muted).SingleLine().Selectable()
-			if len(link.headers) > 0 {
-				ui.Text(c, a.t("share.headers")).FontSize(10.5).TextColor(a.pal.faint)
-				for _, name := range sortedKeys(link.headers) {
-					ui.Text(c, name+": "+link.headers[name]).FontSize(10.5).
-						TextColor(a.pal.muted).SingleLine().Selectable()
-				}
-			}
-			if link.expires != "" {
-				ui.Text(c, a.tf("share.expiresAt", "time", link.expires)).FontSize(10.5).
-					TextColor(a.pal.faint)
-			}
+	}
+	for i := range state.links {
+		if i == shareLinksShown {
+			break
+		}
+		a.shareRow(c, &state.links[i], multi)
+	}
+	if len(state.links) > shareLinksShown {
+		ui.Text(c, a.tf("share.more", "count", len(state.links)-shareLinksShown)).
+			FontSize(12).TextColor(a.pal.muted)
+	}
+	note := a.t("share.footTemporary")
+	if state.mode == "public" {
+		note = a.t("share.footPublic")
+	}
+	ui.Text(c, note).FontSize(11.5).TextColor(a.pal.faint)
+}
+
+// shareExpiry chooses how long a temporary link works.
+func (a *App) shareExpiry(c *ui.Context) {
+	state := &a.share
+	labels := []string{a.t("share.d15m"), a.t("share.d1h"), a.t("share.d1d"), a.t("share.d7d")}
+	index := -1
+	for i, seconds := range shareDurations {
+		if seconds == state.seconds {
+			index = i
+		}
+	}
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, a.t("share.validFor")).FontSize(12).TextColor(a.pal.muted)
+		if a.segments(c, &index, a.t("share.validFor"), labels) && index >= 0 &&
+			shareDurations[index] != state.seconds {
+			state.seconds = shareDurations[index]
+			a.buildShare()
+		}
+		ui.Spacer(c)
+		if len(state.links) > 0 && state.links[0].expires != "" {
+			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, iconClock).FontSize(11).TextColor(a.pal.muted)
+				ui.Text(c, a.tf("share.expiresAt", "time", state.links[0].expires)).FontSize(12).
+					FontFeatures("tnum").TextColor(a.pal.muted)
+			})
 		}
 	})
 }
 
-// shareFooter explains how the links were made and copies them all.
-func (a *App) shareFooter(c *ui.Context) {
-	state := &a.share
-	ui.Column(c).Gap(8).Padding(12, 18).
-		BorderWidth(1, 0, 0, 0).BorderColor(a.pal.border).Children(func() {
-		note := a.t("share.footTemporary")
-		if state.mode == "public" {
-			note = a.t("share.footPublic")
+// shareRow is one link with its copy button. A share of many objects names
+// the object of each link.
+func (a *App) shareRow(c *ui.Context, link *shareLink, named bool) {
+	ui.Column(c).Gap(4).Padding(8, 8, 8, 12).Radius(10).
+		Background(a.pal.sidebar).Border(1, a.pal.border).Children(func() {
+		if named {
+			ui.Text(c, link.entry.key).FontSize(11.5).FontWeight(600).SingleLine()
 		}
-		ui.Text(c, note).FontSize(11).TextColor(a.pal.faint)
-		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			if len(state.links) > 1 {
-				if ui.Button(c, a.t("common.copyAll")).Clicked() {
-					a.copyText(c, joinLines(linkURLs(state.links)))
-				}
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if link.err != nil {
+				ui.Text(c, a.errorText(link.err)).FontSize(11.5).TextColor(a.pal.destructive).
+					Grow(1).MinWidth(0)
+				return
 			}
-			if ui.PrimaryButton(c, a.t("common.done")).Clicked() {
-				a.share = shareState{}
+			ui.Text(c, link.url).FontSize(11.5).Font("monospace").TextColor(a.pal.muted).
+				SingleLine().Selectable().Grow(1).MinWidth(0)
+			if a.primaryAction(c, iconCopy, a.t("common.copy"), false).Height(26).PaddingX(10).Clicked() {
+				a.copyText(c, link.url)
 			}
 		})
+		if link.url != "" && len(link.headers) > 0 {
+			ui.Text(c, a.t("share.headers")).FontSize(11).TextColor(a.pal.faint).Margin(4, 0, 0, 0)
+			for _, name := range sortedKeys(link.headers) {
+				ui.Text(c, name+": "+link.headers[name]).FontSize(11).Font("monospace").
+					TextColor(a.pal.muted).SingleLine().Selectable()
+			}
+		}
 	})
 }
 

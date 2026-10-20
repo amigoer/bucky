@@ -81,6 +81,9 @@ type palette struct {
 	button       ui.Color
 	buttonRing   ui.Color
 	buttonShadow ui.Color
+	// dialogRing and dialogShadow lift a dialog off the window.
+	dialogRing   ui.Color
+	dialogShadow ui.Color
 	// onPrimaryMuted is secondary text on the accent, as a chosen row's.
 	onPrimaryMuted ui.Color
 
@@ -125,6 +128,8 @@ func newPalette(dark bool, accent string) *palette {
 		button:         ui.Hex("#ffffff"),
 		buttonRing:     ui.RGBA(0, 0, 0, 0.16),
 		buttonShadow:   ui.RGBA(0, 0, 0, 0.05),
+		dialogRing:     ui.RGBA(0, 0, 0, 0.16),
+		dialogShadow:   ui.RGBA(0, 0, 0, 0.22),
 		kinds:          map[string]kindPalette{},
 	}
 	if dark {
@@ -151,6 +156,8 @@ func newPalette(dark bool, accent string) *palette {
 		p.button = ui.RGBA(255, 255, 255, 0.1)
 		p.buttonRing = ui.RGBA(255, 255, 255, 0.14)
 		p.buttonShadow = ui.Transparent
+		p.dialogRing = ui.RGBA(255, 255, 255, 0.14)
+		p.dialogShadow = ui.RGBA(0, 0, 0, 0.6)
 		p.warningBg = ui.Oklch(0.5, 0.1, 75).Alpha(0.3)
 		p.destructiveBg = ui.Oklch(0.58, 0.2, 27).Alpha(0.18)
 		// Secondary colors have to read on a dark surface, so they are

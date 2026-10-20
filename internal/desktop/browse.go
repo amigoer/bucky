@@ -446,14 +446,14 @@ func (a *App) emptyState(c *ui.Context) {
 			if state.search.active {
 				a.emptyIcon(c, iconSearchX, false)
 				ui.Text(c, a.tf("states.noResultsTitle", "query", strings.TrimSpace(state.search.query))).
-					FontSize(13.5).Bold().TextAlign(ui.Center)
+					FontSize(15).FontWeight(600).TextAlign(ui.Center)
 				place := a.prefix()
 				if place == "" {
 					place = a.location.Bucket
 				}
 				ui.Text(c, a.tf("states.noResultsDesc", "place", place,
 					"count", formatCount(state.search.scanned))).
-					FontSize(12).TextColor(a.pal.muted).TextAlign(ui.Center)
+					FontSize(12.5).TextColor(a.pal.muted).TextAlign(ui.Center)
 				return
 			}
 			a.emptyIcon(c, iconFolder, true)
@@ -466,10 +466,10 @@ func (a *App) emptyState(c *ui.Context) {
 			if a.readOnly() {
 				description = a.t("states.readOnlyEmpty")
 			}
-			ui.Text(c, title).FontSize(13.5).Bold().TextAlign(ui.Center)
-			ui.Text(c, description).FontSize(12).TextColor(a.pal.muted).TextAlign(ui.Center)
+			ui.Text(c, title).FontSize(15).FontWeight(600).TextAlign(ui.Center)
+			ui.Text(c, description).FontSize(12.5).TextColor(a.pal.muted).TextAlign(ui.Center)
 			if !a.readOnly() {
-				if ui.PrimaryButton(c, a.t("browser.upload")).Clicked() {
+				if a.secondaryButton(c, iconUpload, a.t("browser.upload")).Margin(8, 0, 0, 0).Clicked() {
 					a.pickAndUpload(false)
 				}
 			}
@@ -484,8 +484,8 @@ func (a *App) emptyIcon(c *ui.Context, glyph *ui.SVG, accent bool) {
 		color = a.pal.kindPaletteOf("folder").foreground
 		background = a.pal.kindPaletteOf("folder").background
 	}
-	ui.Box(c).Size(52, 52).Radius(14).Background(background).Center().Children(func() {
-		ui.Icon(c, glyph).FontSize(24).TextColor(color)
+	ui.Box(c).Size(56, 56).Radius(16).Margin(0, 0, 4, 0).Background(background).Center().Children(func() {
+		ui.Icon(c, glyph).FontSize(26).TextColor(color)
 	})
 }
 
@@ -518,18 +518,18 @@ func (a *App) errorState(c *ui.Context, err error) {
 	}
 	ui.Column(c).Fill().Center().Padding(24).Children(func() {
 		ui.Column(c).MaxWidth(380).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(52, 52).Radius(14).Background(background).Center().Children(func() {
-				ui.Icon(c, glyph).FontSize(24).TextColor(color)
+			ui.Box(c).Size(56, 56).Radius(16).Margin(0, 0, 4, 0).Background(background).Center().Children(func() {
+				ui.Icon(c, glyph).FontSize(26).TextColor(color)
 			})
-			ui.Text(c, title).FontSize(13.5).Bold().TextAlign(ui.Center)
-			ui.Text(c, description).FontSize(12).TextColor(a.pal.muted).TextAlign(ui.Center)
-			ui.Row(c).Gap(8).Children(func() {
+			ui.Text(c, title).FontSize(15).FontWeight(600).TextAlign(ui.Center)
+			ui.Text(c, description).FontSize(12.5).TextColor(a.pal.muted).TextAlign(ui.Center)
+			ui.Row(c).Gap(8).Margin(8, 0, 0, 0).Children(func() {
 				if editable {
-					if ui.PrimaryButton(c, a.t("states.editConnection")).Clicked() {
+					if a.primaryAction(c, nil, a.t("states.editConnection"), false).Clicked() {
 						a.openConnect(a.location.ProfileID)
 					}
 				}
-				if ui.Button(c, a.t("common.retry")).Clicked() {
+				if a.secondaryButton(c, iconRefresh, a.t("common.retry")).Clicked() {
 					a.reload()
 				}
 			})

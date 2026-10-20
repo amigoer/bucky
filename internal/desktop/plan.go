@@ -139,53 +139,55 @@ func (a *App) expandEntries(ctx context.Context, location Location, choice []ent
 	return out, nil
 }
 
-// planOverlay draws the plan review over the window.
+// planOverlay draws the plan review as a sheet from the title row.
 func (a *App) planOverlay(c *ui.Context) {
 	state := &a.plan
 	if !state.open {
 		return
 	}
-	ui.Overlay(c, func() {
-		backdrop := ui.Row(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
-			Justify(ui.Center).AlignItems(ui.Center).Background(a.pal.scrim)
-		backdrop.Children(func() {
-			panel := ui.Column(c).Width(640).MaxHeightPercent(88).Radius(16).
-				Background(a.pal.background).Border(1, a.pal.borderStrong).
-				Shadow(0, 24, 60, 0, ui.RGBA(0, 0, 0, 0.22))
-			panel.Clip()
-			panel.Children(func() {
-				a.planHeader(c)
-				ui.Column(c).Grow(1).Children(func() { a.planBody(c) })
-				a.planFooter(c)
-			})
-			if backdrop.OverlayShortcut(0, ui.KeyEscape) {
-				a.closePlan()
-			}
-		})
+	a.dialog(c, 520, true, false, a.closePlan, func() {
+		a.planHeader(c)
+		ui.Column(c).Grow(1).MinHeight(0).Children(func() { a.planBody(c) })
+		a.planFooter(c)
 	})
 	if state.pickerOpen {
 		a.pickerOverlay(c)
 	}
 }
 
-// planHeader names the operation and where it applies.
+// planHeader names the operation, the plan and how long it stays valid.
 func (a *App) planHeader(c *ui.Context) {
 	state := &a.plan
-	title := a.planTitle()
-	ui.Row(c).Height(52).PaddingX(18).Gap(10).AlignItems(ui.Center).
-		BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
-		ui.Icon(c, planGlyph(state.operation)).FontSize(18).TextColor(a.planTone())
-		ui.Column(c).Grow(1).Children(func() {
-			ui.Text(c, title).FontSize(14).Bold().SingleLine()
-			ui.Text(c, a.planSubtitle()).FontSize(11.5).TextColor(a.pal.muted).SingleLine()
-		})
+	tile, ink := a.planTone()
+	subtitle := a.planSubtitle()
+	if state.ready {
+		subtitle = state.plan.ID
+	}
+	a.dialogHeader(c, planGlyph(state.operation), tile, ink, a.planTitle(), subtitle, func() {
 		if len(state.queue) > 0 {
-			ui.Badge(c, a.tn("plan.nextPlan", len(state.queue), "count", len(state.queue))).
-				Background(a.pal.field).TextColor(a.pal.muted)
+			a.chip(c, nil, a.tn("plan.nextPlan", len(state.queue), "count", len(state.queue)),
+				a.pal.mutedFill, a.pal.muted)
 		}
-		if a.iconAction(c, iconX, a.t("common.close")) {
-			a.closePlan()
+		if state.ready && !state.done() && !state.running {
+			background, color := a.pal.mutedFill, a.pal.muted
+			if left := time.Until(state.plan.ExpiresAt); left <= 0 {
+				background, color = a.pal.destructiveBg, a.pal.destructive
+			} else if left < time.Minute {
+				background, color = a.pal.warningBg, a.pal.warningText
+			}
+			a.chip(c, iconClock, a.planExpiry(), background, color)
 		}
+	}, a.closePlan)
+}
+
+// chip is a small rounded label, with an icon when glyph is set.
+func (a *App) chip(c *ui.Context, glyph *ui.SVG, label string, background, color ui.Color) {
+	ui.Row(c).Height(22).PaddingX(9).Gap(5).Radius(11).AlignItems(ui.Center).Shrink(0).
+		Background(background).Children(func() {
+		if glyph != nil {
+			ui.Icon(c, glyph).FontSize(11).TextColor(color)
+		}
+		ui.Text(c, label).FontSize(11.5).FontWeight(600).FontFeatures("tnum").TextColor(color).SingleLine()
 	})
 }
 
@@ -231,42 +233,40 @@ func planGlyph(operation string) *ui.SVG {
 	case "move":
 		return iconArrowRightLeft
 	case "copy":
-		return iconArrowUpRight
+		return iconCopy
 	}
 	return iconUpload
 }
 
-// planTone colors the plan's icon.
-func (a *App) planTone() ui.Color {
-	if a.plan.operation == "delete" {
-		return a.pal.destructive
+// planTone is the tile and ink of the plan's icon: red for a delete, amber
+// for an upload that overwrites.
+func (a *App) planTone() (ui.Color, ui.Color) {
+	switch a.plan.operation {
+	case "delete":
+		return a.pal.destructiveBg, a.pal.destructive
+	case "upload":
+		return a.pal.warningBg, a.pal.warningText
 	}
-	return a.pal.primary
+	return a.pal.primarySoft, a.pal.primaryText
 }
 
-// planBody shows what the plan will do.
+// planBody shows what the plan will do, or what it did.
 func (a *App) planBody(c *ui.Context) {
 	state := &a.plan
 	switch {
 	case state.creating:
-		ui.Column(c).Height(240).Center().Gap(10).Children(func() {
-			ui.Spinner(c).Label(a.t("plan.creating"))
-			ui.Text(c, a.t("plan.creating")).FontSize(12.5).TextColor(a.pal.muted)
+		ui.Row(c).Gap(8).Padding(6, 20, 26, 20).AlignItems(ui.Center).Children(func() {
+			ui.Spinner(c).Size(12, 12).Label(a.t("plan.creating"))
+			ui.Text(c, a.t("plan.creating")).FontSize(13).TextColor(a.pal.muted)
 		})
 	case state.err != nil:
-		ui.Column(c).Height(240).Center().Padding(24).Children(func() {
-			ui.Column(c).MaxWidth(380).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, iconCircleAlert).FontSize(28).TextColor(a.pal.destructive)
-				ui.Text(c, a.errorText(state.err)).FontSize(12.5).
-					TextColor(a.pal.muted).TextAlign(ui.Center)
-			})
-		})
+		a.planError(c)
 	case state.running:
 		a.planRunning(c)
 	case !state.ready:
 		return
-	case state.expired():
-		a.planExpired(c)
+	case state.done():
+		a.planDone(c)
 	default:
 		a.planReview(c)
 	}
@@ -277,7 +277,36 @@ func (s *planState) expired() bool {
 	return s.ready && !s.plan.ExpiresAt.IsZero() && time.Now().After(s.plan.ExpiresAt)
 }
 
-// planReview lists the plan's totals, warnings and items.
+// done reports whether the plan has run.
+func (s *planState) done() bool {
+	return s.ready && (s.plan.Status == "completed" || s.plan.Status == "partial")
+}
+
+// planError explains why the plan cannot be made or run. A plan whose
+// objects changed can be made again.
+func (a *App) planError(c *ui.Context) {
+	state := &a.plan
+	ui.Column(c).Gap(10).Padding(0, 20, 18, 20).Children(func() {
+		switch core.AsError(state.err).Code {
+		case "conflict", "expired":
+			message := a.t("plan.changed")
+			if core.AsError(state.err).Code == "expired" {
+				message = a.t("plan.expired")
+			}
+			a.notice(c, a.pal.warningBg, a.pal.warningText, message)
+			ui.Row(c).Children(func() {
+				if a.secondaryButton(c, iconRefresh, a.t("plan.regenerate")).Clicked() {
+					state.err = nil
+					a.createPlan()
+				}
+			})
+		default:
+			a.notice(c, a.pal.destructiveBg, a.pal.destructive, a.errorText(state.err))
+		}
+	})
+}
+
+// planReview lists the plan's facts, warnings and the objects it covers.
 func (a *App) planReview(c *ui.Context) {
 	state := &a.plan
 	plan := state.plan
@@ -294,92 +323,118 @@ func (a *App) planReview(c *ui.Context) {
 		}
 	}
 
-	ui.Scroll(c).MaxHeight(420).Children(func() {
-		ui.Column(c).Gap(12).Padding(18).Children(func() {
-			ui.Row(c).Gap(10).Children(func() {
-				a.planStat(c, a.t("plan.objects"), formatCount(int64(len(plan.Items))))
-				a.planStat(c, a.t("plan.size"), formatBytes(plan.Bytes))
-				if overwrite > 0 {
-					a.planStat(c, a.t("plan.overwrite"), formatCount(int64(overwrite)))
-				}
-			})
-			if plan.Warning != "" {
-				a.planNotice(c, a.pal.warningBg, a.pal.warningText, plan.Warning)
+	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+		ui.Column(c).Gap(10).Padding(0, 20, 14, 20).Children(func() {
+			a.planFacts(c, overwrite)
+			if state.expired() {
+				ui.Row(c).Gap(10).Padding(9, 12).Radius(9).AlignItems(ui.Center).
+					Background(a.pal.destructiveBg).Children(func() {
+					ui.Icon(c, iconAlertTriangle).FontSize(13).TextColor(a.pal.destructive)
+					ui.Text(c, a.t("plan.expired")).FontSize(12.5).FontWeight(600).
+						TextColor(a.pal.destructive).Grow(1)
+					if a.secondaryButton(c, nil, a.t("plan.regenerate")).Height(26).Clicked() {
+						a.createPlan()
+					}
+				})
 			}
 			switch state.operation {
 			case "delete":
-				a.planNotice(c, a.pal.destructiveBg, a.pal.destructive, a.t("plan.warnDelete"))
+				a.notice(c, a.pal.destructiveBg, a.pal.destructive, a.t("plan.warnDelete"))
 			case "move":
-				a.planNotice(c, a.pal.warningBg, a.pal.warningText, a.t("plan.warnMove"))
-			case "upload":
-				if overwrite > 0 {
-					a.planNotice(c, a.pal.warningBg, a.pal.warningText,
-						a.tf("plan.warnOverwrite", "count", overwrite))
-				}
+				a.notice(c, a.pal.warningBg, a.pal.warningText, a.t("plan.warnMove"))
+			}
+			if overwrite > 0 {
+				a.notice(c, a.pal.warningBg, a.pal.warningText, a.tf("plan.warnOverwrite", "count", overwrite))
 			}
 			if folders {
-				a.planNotice(c, a.pal.field, a.pal.muted, a.t("plan.warnFolders"))
+				a.notice(c, a.pal.mutedFill, a.pal.muted, a.t("plan.warnFolders"))
 			}
-			ui.Column(c).Gap(1).Children(func() {
-				for i := range plan.Items {
-					a.planItem(c, &plan.Items[i])
+			if plan.Warning != "" {
+				a.notice(c, a.pal.mutedFill, a.pal.muted, plan.Warning)
+			}
+			a.planNames(c, plan.Items)
+			ui.Text(c, a.t("plan.idNote")).FontSize(11.5).LineHeight(1.5).TextColor(a.pal.faint)
+		})
+	})
+}
+
+// planFacts is the grid of what the plan covers and where.
+func (a *App) planFacts(c *ui.Context, overwrite int) {
+	state := &a.plan
+	plan := state.plan
+	source := state.location.Bucket + "/" + state.location.Prefix
+	target := "—"
+	switch {
+	case state.operation == "upload":
+		source, target = a.tf("plan.localFiles", "count", len(plan.Items)), source
+	case state.target.Bucket != "":
+		target = state.target.Bucket + "/" + state.target.Key
+	case state.operation != "delete":
+		target = a.t("plan.notSelected")
+	}
+	connection := ""
+	if profile := a.profileOf(state.location.ProfileID); profile != nil {
+		connection = profile.Name
+	}
+	overwriteColor := a.pal.text
+	if overwrite > 0 {
+		overwriteColor = a.pal.warningText
+	}
+	facts := []struct {
+		label, value string
+		color        ui.Color
+	}{
+		{a.t("plan.objects"), formatCount(int64(len(plan.Items))), a.pal.text},
+		{a.t("plan.size"), formatBytes(plan.Bytes), a.pal.text},
+		{a.t("plan.overwrite"), formatCount(int64(overwrite)), overwriteColor},
+		{a.t("plan.source"), source, a.pal.text},
+		{a.t("plan.destination"), target, a.pal.text},
+		{a.t("plan.connection"), connection, a.pal.text},
+	}
+	ui.Column(c).Radius(10).Border(1, a.pal.border).Clip().Shrink(0).Children(func() {
+		for row := 0; row < len(facts); row += 3 {
+			line := ui.Row(c)
+			if row == 0 {
+				line.BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border)
+			}
+			line.Children(func() {
+				for i := row; i < row+3; i++ {
+					fact := facts[i]
+					cell := ui.Column(c).Grow(1).MinWidth(0).Gap(2).Padding(9, 12)
+					if i < row+2 {
+						cell.BorderWidth(0, 1, 0, 0).BorderColor(a.pal.border)
+					}
+					cell.Tooltip(fact.value).Children(func() {
+						ui.Text(c, fact.label).FontSize(11).TextColor(a.pal.muted).SingleLine()
+						ui.Text(c, fact.value).FontSize(13).FontWeight(600).TextColor(fact.color).SingleLine()
+					})
 				}
 			})
-			ui.Text(c, a.t("plan.idNote")).FontSize(11).TextColor(a.pal.faint)
-		})
+		}
 	})
 }
 
-// planStat is one number of the plan's summary.
-func (a *App) planStat(c *ui.Context, label, value string) {
-	ui.Column(c).Grow(1).Gap(2).Padding(10, 12).Radius(10).
-		Background(a.pal.field).Children(func() {
-		ui.Text(c, label).FontSize(10.5).TextColor(a.pal.faint)
-		ui.Text(c, value).FontSize(14).Bold().SingleLine()
-	})
-}
-
-// planNotice is a warning line inside the plan.
-func (a *App) planNotice(c *ui.Context, background, color ui.Color, text string) {
-	ui.Row(c).Gap(8).Padding(8, 10).Radius(8).Background(background).
-		AlignItems(ui.Start).Children(func() {
-		ui.Icon(c, iconAlertTriangle).FontSize(14).TextColor(color)
-		ui.Text(c, text).FontSize(11.5).TextColor(color).Grow(1)
-	})
-}
-
-// planItem is one row of the plan.
-func (a *App) planItem(c *ui.Context, item *core.PlanItem) {
-	key := item.Source.Key
-	if item.LocalPath != "" {
-		key = item.LocalPath
-	}
-	ui.Row(c).Padding(6, 8).Gap(8).AlignItems(ui.Center).Radius(6).Children(func() {
-		ui.Icon(c, iconOf(kindOf(item.Source.Key, item.Source.ContentType, false))).
-			FontSize(14).TextColor(a.pal.muted)
-		ui.Column(c).Grow(1).Children(func() {
-			ui.Text(c, basename(key)).FontSize(12).SingleLine()
-			if item.Target != nil && item.Target.Key != "" {
-				ui.Text(c, item.Target.Key).FontSize(10.5).TextColor(a.pal.faint).SingleLine()
+// planNames shows the first objects of the plan by name.
+func (a *App) planNames(c *ui.Context, items []core.PlanItem) {
+	const shown = 6
+	ui.Row(c).Gap(5).Wrap().Children(func() {
+		for i, item := range items {
+			if i == shown {
+				a.nameChip(c, "+"+formatCount(int64(len(items)-shown)))
+				break
 			}
-		})
-		if item.Existing != nil {
-			ui.Badge(c, a.t("plan.overwrite")).Background(a.pal.warningBg).
-				TextColor(a.pal.warningText)
+			key := item.Source.Key
+			if item.LocalPath != "" {
+				key = item.LocalPath
+			}
+			a.nameChip(c, basename(key))
 		}
-		ui.Text(c, formatBytes(item.Source.Size)).FontSize(11.5).TextColor(a.pal.muted)
 	})
 }
 
-// planExpired explains that a plan has to be made again.
-func (a *App) planExpired(c *ui.Context) {
-	ui.Column(c).Height(220).Center().Gap(10).Children(func() {
-		ui.Icon(c, iconClock).FontSize(28).TextColor(a.pal.warningText)
-		ui.Text(c, a.t("plan.expired")).FontSize(12.5).TextColor(a.pal.muted)
-		if ui.PrimaryButton(c, a.t("plan.regenerate")).Clicked() {
-			a.createPlan()
-		}
-	})
+func (a *App) nameChip(c *ui.Context, name string) {
+	ui.Text(c, name).FontSize(11.5).Font("monospace").SingleLine().MaxWidth(200).
+		Height(22).PaddingX(8).Radius(6).Background(a.pal.mutedFill)
 }
 
 // planRunning shows how far the plan has got.
@@ -389,45 +444,142 @@ func (a *App) planRunning(c *ui.Context) {
 	if state.total > 0 {
 		ratio = float64(state.progress) / float64(state.total)
 	}
-	ui.Column(c).Padding(24).Gap(10).Children(func() {
-		ui.Text(c, a.tf("plan.running", "done", state.progress, "total", state.total)).
-			FontSize(12.5).TextColor(a.pal.muted)
-		a.progressBar(c, ratio, 6, a.pal.primary)
+	ui.Column(c).Padding(6, 20, 26, 20).Gap(10).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Spinner(c).Size(12, 12)
+			ui.Text(c, a.tf("plan.running", "done", state.progress, "total", state.total)).
+				FontSize(13).FontFeatures("tnum")
+		})
+		a.progressBar(c, ratio, 5, a.pal.primary)
+	})
+}
+
+// planDone shows what each item of the plan came to.
+func (a *App) planDone(c *ui.Context) {
+	results := a.plan.plan.Results
+	succeeded, failed := 0, 0
+	for _, result := range results {
+		if result.Error != nil {
+			failed++
+		} else {
+			succeeded++
+		}
+	}
+	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+		ui.Column(c).Gap(10).Padding(0, 20, 14, 20).Children(func() {
+			background, color, glyph, title := a.pal.successBg, a.pal.successText, iconCheck, a.t("plan.allDone")
+			if failed > 0 {
+				background, color, glyph = a.pal.warningBg, a.pal.warningText, iconAlertTriangle
+				title = a.tf("plan.partial", "count", failed)
+			}
+			ui.Row(c).Gap(9).Padding(10, 12).Radius(10).AlignItems(ui.Center).
+				Background(background).Children(func() {
+				ui.Icon(c, glyph).FontSize(15).TextColor(color)
+				ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(color)
+			})
+			ui.Row(c).Gap(8).Children(func() {
+				a.resultCount(c, a.t("plan.ok"), succeeded, a.pal.successText)
+				failColor := a.pal.text
+				if failed > 0 {
+					failColor = a.pal.destructive
+				}
+				a.resultCount(c, a.t("plan.fail"), failed, failColor)
+			})
+			ui.Column(c).Radius(10).Border(1, a.pal.border).Clip().Children(func() {
+				for i := range results {
+					a.resultRow(c, &results[i], i < len(results)-1)
+				}
+			})
+		})
+	})
+}
+
+func (a *App) resultCount(c *ui.Context, label string, count int, color ui.Color) {
+	ui.Column(c).Grow(1).Gap(1).Padding(8, 12).Radius(9).Border(1, a.pal.border).Children(func() {
+		ui.Text(c, label).FontSize(11).TextColor(a.pal.muted)
+		ui.Text(c, formatCount(int64(count))).FontSize(18).FontWeight(650).FontFeatures("tnum").TextColor(color)
+	})
+}
+
+// resultRow is what one item of an executed plan came to.
+func (a *App) resultRow(c *ui.Context, result *core.ItemResult, divider bool) {
+	key := result.Source.Key
+	if key == "" && result.Target != nil {
+		key = result.Target.Key
+	}
+	label, background, color := a.t("plan.ok"), a.pal.successBg, a.pal.successText
+	switch {
+	case result.Error != nil:
+		label, background, color = a.t("plan.fail"), a.pal.destructiveBg, a.pal.destructive
+	case result.Status != "completed":
+		label, background, color = a.t("transfers.status.queued"), a.pal.mutedFill, a.pal.muted
+	}
+	row := ui.Row(c).Gap(10).Padding(8, 12).AlignItems(ui.Center)
+	if divider {
+		row.BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border)
+	}
+	row.Children(func() {
+		ui.Text(c, label).FontSize(10.5).FontWeight(600).TextColor(color).TextAlign(ui.Center).
+			Width(52).Height(18).Radius(9).Background(background).SingleLine()
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			ui.Text(c, key).FontSize(11.5).Font("monospace").SingleLine()
+			if result.Error != nil {
+				ui.Text(c, a.errorText(result.Error)).FontSize(11.5).TextColor(a.pal.muted)
+			}
+		})
 	})
 }
 
 // planFooter carries the confirmation and the actions.
 func (a *App) planFooter(c *ui.Context) {
 	state := &a.plan
-	if !state.ready || state.running || state.expired() || state.creating {
-		if state.err != nil {
-			ui.Row(c).Padding(12, 18).Justify(ui.End).Children(func() {
-				if ui.Button(c, a.t("common.close")).Clicked() {
-					a.closePlan()
-				}
-			})
-		}
-		return
-	}
-	ui.Column(c).Gap(10).Padding(14, 18).
-		BorderWidth(1, 0, 0, 0).BorderColor(a.pal.border).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, a.planExpiry()).FontSize(11).TextColor(a.pal.faint)
+	switch {
+	case state.done(), state.err != nil:
+		a.dialogFooter(c, func() {
 			ui.Spacer(c)
-			if ui.Button(c, a.t("common.cancel")).Clicked() {
+			if a.secondaryButton(c, nil, a.t("common.done")).Height(30).Clicked() {
 				a.closePlan()
 			}
 		})
-		ui.Checkbox(c, &state.confirmed, a.t("plan.confirm"))
+		return
+	case !state.ready || state.running || state.creating:
+		return
+	}
+	usable := !state.expired()
+	a.dialogFooter(c, func() {
+		check := ui.Row(c).Grow(1).Gap(9).AlignItems(ui.Center).Label(a.t("plan.confirm"))
+		if usable {
+			check.Cursor(ui.CursorPointer)
+		} else {
+			check.Opacity(0.4)
+		}
+		check.Children(func() {
+			box := ui.Box(c).Size(16, 16).Radius(5).Center().Shrink(0)
+			if state.confirmed && usable {
+				box.Background(a.pal.primary).Children(func() {
+					ui.Icon(c, iconCheck).FontSize(11).TextColor(a.pal.onPrimary)
+				})
+			} else {
+				box.Border(1.5, a.pal.borderStrong)
+			}
+			ui.Text(c, a.t("plan.confirm")).FontSize(12.5)
+		})
+		if usable && check.Clicked() {
+			state.confirmed = !state.confirmed
+		}
+		if a.secondaryButton(c, nil, a.t("common.cancel")).Height(30).Clicked() {
+			a.closePlan()
+		}
 		label := a.t("plan.execute")
 		if state.operation == "delete" {
 			label = a.tn("plan.executeDelete", len(state.plan.Items), "count", len(state.plan.Items))
 		}
-		button := ui.PrimaryButton(c, label).FillWidth().Disabled(!state.confirmed)
+		ready := state.confirmed && usable
+		button := a.primaryAction(c, nil, label, !ready).Height(30)
 		if state.operation == "delete" {
 			button.Background(a.pal.destructive)
 		}
-		if button.Clicked() && state.confirmed {
+		if ready && button.Clicked() {
 			a.executePlan()
 		}
 	})

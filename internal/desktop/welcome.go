@@ -11,7 +11,7 @@ func (a *App) welcome(c *ui.Context) {
 			ui.Text(c, a.t("welcome.desc")).FontSize(12.5).TextColor(a.pal.muted).
 				TextAlign(ui.Center)
 			ui.Row(c).Gap(8).Margin(6, 0, 0, 0).Children(func() {
-				if ui.PrimaryButton(c, a.t("welcome.add")).Clicked() {
+				if a.primaryAction(c, iconPlus, a.t("welcome.add"), false).Height(30).Clicked() {
 					a.openConnect("")
 				}
 			})

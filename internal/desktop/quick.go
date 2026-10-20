@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,130 +72,146 @@ func (a *App) quickOverlay(c *ui.Context) {
 	if !state.open {
 		return
 	}
-	ui.Overlay(c, func() {
-		backdrop := ui.Row(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
-			Justify(ui.Center).AlignItems(ui.Center).Background(a.pal.scrim)
-		backdrop.Children(func() {
-			panel := ui.Column(c).Width(560).MaxHeightPercent(86).Radius(16).
-				Background(a.pal.background).Border(1, a.pal.borderStrong).
-				Shadow(0, 24, 60, 0, ui.RGBA(0, 0, 0, 0.22))
-			panel.Clip()
-			panel.Children(func() {
-				ui.Row(c).Height(52).PaddingX(18).Gap(10).AlignItems(ui.Center).
-					BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
-					ui.Icon(c, iconZap).FontSize(18).TextColor(a.pal.primary)
-					ui.Text(c, a.t("quick.title")).FontSize(14).Bold().Grow(1)
-					if a.iconAction(c, iconX, a.t("common.close")) {
-						a.quick = quickState{}
-					}
-				})
-				ui.Scroll(c).Grow(1).Children(func() {
-					ui.Column(c).Gap(14).Padding(16, 18).Children(func() {
-						a.quickImage(c)
-						a.quickOptions(c)
-					})
-				})
-				a.quickFooter(c)
-			})
-			if backdrop.OverlayShortcut(0, ui.KeyEscape) {
-				a.quick = quickState{}
+	closeQuick := func() { a.quick = quickState{} }
+	a.dialog(c, 520, false, false, closeQuick, func() {
+		a.dialogHeader(c, iconZap, a.pal.primarySoft, a.pal.primaryText, a.t("quick.title"), "", func() {
+			if platformIsMac() {
+				ui.Text(c, "⌥⌘U").FontSize(11).TextColor(a.pal.faint)
 			}
+		}, closeQuick)
+		ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
+			a.quickImage(c)
+			a.quickOptions(c)
+			a.quickStatus(c)
 		})
+		a.quickFooter(c)
 	})
+	if !state.busy && c.Shortcut(ui.Cmd, ui.KeyV) {
+		a.pasteQuickImage()
+	}
 }
 
 // quickImage shows the image to upload, or invites one.
 func (a *App) quickImage(c *ui.Context) {
 	state := &a.quick
-	drop := ui.Column(c).Height(200).Radius(12).Center().Gap(8).
-		Background(a.pal.tile).Border(1, a.pal.borderStrong)
-	if drop.FileDragOver() {
-		drop.Border(2, a.pal.primary)
-	}
-	drop.Children(func() {
-		switch {
-		case state.busy:
-			ui.Spinner(c).Size(22, 22)
-			ui.Text(c, a.t("quick.processing")).FontSize(12).TextColor(a.pal.muted)
-		case state.bitmap != nil:
-			ui.Image(c, state.bitmap).Fit(ui.Contain).Grow(1).Padding(8)
-		default:
-			ui.Icon(c, iconImagePlus).FontSize(28).TextColor(a.pal.faint)
-			ui.Text(c, a.t("quick.empty")).FontSize(12.5).TextColor(a.pal.muted)
-			ui.Row(c).Gap(8).Children(func() {
-				if ui.Button(c, a.t("quick.choose")).Clicked() {
+	row := ui.Row(c).Gap(14).Padding(0, 16, 14, 16)
+	dragging := row.FileDragOver()
+	row.Children(func() {
+		thumb := ui.Box(c).Size(150, 108).Radius(10).Clip().Center().Shrink(0).Background(a.pal.tile)
+		if dragging {
+			thumb.Border(2, a.pal.primary)
+		} else {
+			thumb.Border(1, a.pal.border)
+		}
+		if state.bitmap == nil {
+			thumb.Stripes(a.pal.stripe, 6, 6, 135)
+		}
+		thumb.Children(func() {
+			if state.bitmap != nil {
+				ui.Image(c, state.bitmap).Fit(ui.Cover).Absolute().Left(0).Top(0).Right(0).Bottom(0)
+			}
+			switch {
+			case state.busy:
+				ui.Box(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Center().
+					Background(ui.RGBA(0, 0, 0, 0.35)).Children(func() {
+					ui.Spinner(c).Size(18, 18).Label(a.t("quick.processing"))
+				})
+			case state.done:
+				ui.Box(c).Absolute().Right(7).Top(7).Size(22, 22).Radius(11).Center().
+					Background(a.pal.success).Children(func() {
+					ui.Icon(c, iconCheck).FontSize(12).TextColor(ui.Hex("#ffffff"))
+				})
+			case state.bitmap == nil:
+				ui.Icon(c, iconImagePlus).FontSize(26).TextColor(a.pal.faint)
+			}
+		})
+		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Padding(2, 0, 0, 0).Children(func() {
+			if len(state.data) > 0 {
+				ui.Text(c, state.name).FontSize(13).FontWeight(600).SingleLine()
+				detail := formatBytes(state.size)
+				if state.width > 0 {
+					detail = strconv.Itoa(state.width) + " × " + strconv.Itoa(state.height) + " · " + detail
+				}
+				ui.Text(c, detail).FontSize(12).FontFeatures("tnum").TextColor(a.pal.muted)
+			} else {
+				ui.Text(c, a.t("quick.empty")).FontSize(13).FontWeight(600)
+			}
+			ui.Row(c).Gap(6).Margin(6, 0, 0, 0).Children(func() {
+				if a.secondaryButton(c, nil, a.t("quick.choose")).Height(26).Clicked() {
 					a.pickQuickImage()
 				}
-				if ui.Button(c, a.t("quick.clipboard")).Clicked() {
+				if a.secondaryButton(c, nil, a.t("quick.clipboard")).Height(26).Clicked() {
 					a.pasteQuickImage()
 				}
 			})
-		}
+			ui.Spacer(c)
+			if platformIsMac() {
+				ui.Text(c, a.t("quick.paste")).FontSize(11.5).TextColor(a.pal.faint)
+			}
+		})
 	})
-	if files := drop.DroppedFiles(); len(files) > 0 {
+	if files := row.DroppedFiles(); len(files) > 0 {
 		a.loadQuickFile(files[0])
-	}
-	if state.err != "" {
-		ui.Text(c, state.err).FontSize(11.5).TextColor(a.pal.destructive)
 	}
 }
 
 // quickOptions chooses where and how the image is uploaded.
 func (a *App) quickOptions(c *ui.Context) {
-	state := &a.quick
 	writable := a.writableProfiles()
-	if len(writable) == 0 {
-		a.planNotice(c, a.pal.warningBg, a.pal.warningText, a.t("quick.noConnection"))
-		return
-	}
-	profile := a.quickProfile()
-	if profile == nil {
-		return
-	}
-	a.settingsGroup(c, "", func() {
-		a.fieldRow(c, a.t("quick.connection"), func() {
-			options := make([]string, 0, len(writable))
-			for _, item := range writable {
-				options = append(options, item.Name)
-			}
-			current := profile.Name
-			select_ := ui.Select(c, &current, options).Label(a.t("quick.connection")).Width(240)
-			if select_.Changed() {
+	ui.Column(c).Gap(10).Padding(14, 16).BorderWidth(1, 0, 0, 0).BorderColor(a.pal.border).Children(func() {
+		if len(writable) == 0 {
+			a.notice(c, a.pal.warningBg, a.pal.warningText, a.t("quick.noConnection"))
+			return
+		}
+		profile := a.quickProfile()
+		if profile == nil {
+			return
+		}
+		ui.Row(c).Gap(10).Children(func() {
+			a.quickField(c, a.t("quick.connection"), func() {
+				options := make([]string, 0, len(writable))
 				for _, item := range writable {
-					if item.Name == current {
-						a.prefs.Quick.ProfileID = item.ID
-						a.prefs.Quick.Bucket = item.Bucket
-						a.savePrefs()
-						a.ensureBuckets(item.ID)
-						return
+					options = append(options, item.Name)
+				}
+				current := profile.Name
+				select_ := ui.Select(c, &current, options).Label(a.t("quick.connection")).FillWidth()
+				if select_.Changed() {
+					for _, item := range writable {
+						if item.Name == current {
+							a.prefs.Quick.ProfileID = item.ID
+							a.prefs.Quick.Bucket = item.Bucket
+							a.savePrefs()
+							a.ensureBuckets(item.ID)
+							return
+						}
 					}
 				}
-			}
+			})
+			a.quickField(c, a.t("quick.bucket"), func() {
+				names := a.quickBuckets(profile)
+				if len(names) == 0 {
+					ui.Text(c, a.t("sidebar.noBuckets")).FontSize(12).TextColor(a.pal.muted).Height(30)
+					return
+				}
+				current := a.prefs.Quick.Bucket
+				if current == "" {
+					current = names[0]
+				}
+				select_ := ui.Select(c, &current, names).Label(a.t("quick.bucket")).FillWidth()
+				if select_.Changed() {
+					a.prefs.Quick.Bucket = current
+					a.savePrefs()
+				}
+			})
 		})
-		a.fieldRow(c, a.t("quick.bucket"), func() {
-			names := a.quickBuckets(profile)
-			if len(names) == 0 {
-				ui.Text(c, a.t("sidebar.noBuckets")).FontSize(12).TextColor(a.pal.muted)
-				return
-			}
-			current := a.prefs.Quick.Bucket
-			if current == "" {
-				current = names[0]
-			}
-			select_ := ui.Select(c, &current, names).Label(a.t("quick.bucket")).Width(240)
-			if select_.Changed() {
-				a.prefs.Quick.Bucket = current
-				a.savePrefs()
-			}
-		})
-		a.fieldRow(c, a.t("quick.template"), func() {
+		a.quickField(c, a.t("quick.template"), func() {
 			labels := append([]string{}, pathTemplates...)
 			index := a.prefs.Quick.Template
 			if index < 0 || index >= len(labels) {
 				index = 0
 			}
 			current := labels[index]
-			select_ := ui.Select(c, &current, labels).Label(a.t("quick.template")).Width(300)
+			select_ := ui.Select(c, &current, labels).Label(a.t("quick.template")).FillWidth()
 			if select_.Changed() {
 				for i, label := range labels {
 					if label == current {
@@ -205,33 +222,113 @@ func (a *App) quickOptions(c *ui.Context) {
 				}
 			}
 		})
-		a.fieldRow(c, a.t("quick.compress"), func() {
-			if ui.Switch(c, &a.prefs.Quick.Compress).Changed() {
-				a.savePrefs()
-				a.reencodeQuick()
-			}
-		})
-		a.fieldRow(c, a.t("quick.webp"), func() {
-			if ui.Switch(c, &a.prefs.Quick.WebP).Changed() {
-				a.savePrefs()
-				a.reencodeQuick()
-			}
-		})
-		a.fieldRow(c, a.t("quick.copyAs"), func() {
-			formats := []string{"markdown", "url"}
-			labels := []string{"Markdown", "URL"}
-			index := 0
-			if a.prefs.Quick.Format == "url" {
-				index = 1
-			}
-			seg := ui.Segmented(c, &index, labels...).Label(a.t("quick.copyAs")).Width(180)
-			if seg.Changed() && index >= 0 && index < len(formats) {
-				a.prefs.Quick.Format = formats[index]
-				a.savePrefs()
-			}
+		ui.Text(c, "→ "+a.quickKey("")).FontSize(11.5).Font("monospace").TextColor(a.pal.muted).SingleLine()
+		ui.Row(c).Gap(18).AlignItems(ui.Center).Children(func() {
+			a.quickSwitch(c, a.t("quick.compress"), &a.prefs.Quick.Compress)
+			a.quickSwitch(c, a.t("quick.webp"), &a.prefs.Quick.WebP)
+			ui.Spacer(c)
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+				ui.Text(c, a.t("quick.copyAs")).FontSize(11.5).TextColor(a.pal.muted).SingleLine()
+				formats := []string{"markdown", "url"}
+				index := 0
+				if a.prefs.Quick.Format == "url" {
+					index = 1
+				}
+				if a.segments(c, &index, a.t("quick.copyAs"), []string{"Markdown", "URL"}) &&
+					index >= 0 && index < len(formats) {
+					a.prefs.Quick.Format = formats[index]
+					a.savePrefs()
+				}
+			})
 		})
 	})
-	_ = state
+}
+
+// quickField is a labeled control of the quick upload options.
+func (a *App) quickField(c *ui.Context, label string, control func()) {
+	ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
+		ui.Text(c, label).FontSize(11.5).TextColor(a.pal.muted)
+		control()
+	})
+}
+
+// quickSwitch is a labeled switch that prepares the image again.
+func (a *App) quickSwitch(c *ui.Context, label string, value *bool) {
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+		if ui.Switch(c, value).Label(label).Changed() {
+			a.savePrefs()
+			a.reencodeQuick()
+		}
+		ui.Text(c, label).FontSize(12.5).SingleLine()
+	})
+}
+
+// quickKey is the key the image would be uploaded as. Before an image is
+// chosen it shows the template's placeholders.
+func (a *App) quickKey(suffix string) string {
+	state := &a.quick
+	template := pathTemplates[0]
+	if index := a.prefs.Quick.Template; index >= 0 && index < len(pathTemplates) {
+		template = pathTemplates[index]
+	}
+	if len(state.data) == 0 {
+		return template
+	}
+	return renderTemplate(template, templateValues{
+		date: time.Now(),
+		hash: state.hash,
+		name: state.name,
+		ext:  quickExtension(a.prefs.Quick.WebP),
+	}, suffix)
+}
+
+// quickStatus reports the upload: in progress, done, refused or failed.
+func (a *App) quickStatus(c *ui.Context) {
+	state := &a.quick
+	if state.err == "" && !state.done && (!state.busy || len(state.data) == 0) {
+		return
+	}
+	ui.Column(c).Gap(8).Padding(0, 16, 14, 16).Children(func() {
+		switch {
+		case state.conflict:
+			ui.Column(c).Gap(8).Padding(10, 12).Radius(10).Background(a.pal.warningBg).Children(func() {
+				ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, iconAlertTriangle).FontSize(13).TextColor(a.pal.warningText)
+					ui.Text(c, a.t("quick.conflict")).FontSize(12.5).FontWeight(600).TextColor(a.pal.warningText)
+				})
+				ui.Text(c, a.quickKey("")).FontSize(11.5).Font("monospace").TextColor(a.pal.warningText).SingleLine()
+				ui.Row(c).Gap(6).Children(func() {
+					if a.secondaryButton(c, nil, a.t("quick.rename")).Height(26).Clicked() {
+						a.uploadQuick(true)
+					}
+					if a.secondaryButton(c, nil, a.t("quick.overwrite")).Height(26).Clicked() {
+						a.uploadQuick(false)
+					}
+				})
+			})
+		case state.err != "":
+			a.notice(c, a.pal.destructiveBg, a.pal.destructive, state.err)
+		case state.done:
+			ui.Column(c).Gap(7).Padding(10, 12).Radius(10).Background(a.pal.successBg).Children(func() {
+				ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, iconCheck).FontSize(13).TextColor(a.pal.successText)
+					ui.Text(c, a.t("quick.done")).FontSize(12.5).FontWeight(600).TextColor(a.pal.successText)
+				})
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, state.link).FontSize(11.5).Font("monospace").SingleLine().Selectable().
+						Grow(1).MinWidth(0)
+					if a.secondaryButton(c, iconCopy, a.t("common.copy")).Height(26).Clicked() {
+						a.copyText(c, state.link)
+					}
+				})
+			})
+		default:
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Spinner(c).Size(11, 11)
+				ui.Text(c, a.t("quick.uploading")).FontSize(12).TextColor(a.pal.muted)
+			})
+		}
+	})
 }
 
 // quickProfile is the connection the panel uploads through.
@@ -256,43 +353,29 @@ func (a *App) quickBuckets(profile *core.Profile) []string {
 	return names
 }
 
-// quickFooter uploads and copies the link.
+// quickFooter closes the panel or uploads and copies the link.
 func (a *App) quickFooter(c *ui.Context) {
 	state := &a.quick
-	ui.Column(c).Gap(8).Padding(12, 18).
-		BorderWidth(1, 0, 0, 0).BorderColor(a.pal.border).Children(func() {
-		if state.link != "" {
-			ui.Text(c, state.link).FontSize(11).Font("monospace").
-				TextColor(a.pal.muted).SingleLine().Selectable()
+	a.dialogFooter(c, func() {
+		ui.Spacer(c)
+		if a.secondaryButton(c, nil, a.t("common.close")).Height(30).Clicked() {
+			a.quick = quickState{}
+			return
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			if state.done {
-				ui.Text(c, a.t("quick.done")).FontSize(12).TextColor(a.pal.successText).Grow(1)
-				if ui.Button(c, a.t("quick.again")).Clicked() {
-					a.quick = quickState{open: true, format: a.prefs.Quick.Format}
-				}
-				return
+		if state.done {
+			if a.primaryAction(c, iconUpload, a.t("quick.again"), false).Height(30).Clicked() {
+				a.quick = quickState{open: true, format: a.prefs.Quick.Format}
 			}
-			ui.Spacer(c)
-			if state.conflict {
-				if ui.Button(c, a.t("quick.rename")).Clicked() {
-					a.uploadQuick(true)
-				}
-				if ui.PrimaryButton(c, a.t("quick.overwrite")).Clicked() {
-					a.uploadQuick(false)
-				}
-				return
-			}
-			label := a.t("quick.upload")
-			if state.busy {
-				label = a.t("quick.uploading")
-			}
-			button := ui.PrimaryButton(c, label).
-				Disabled(state.busy || len(state.data) == 0 || a.quickProfile() == nil)
-			if button.Clicked() {
-				a.uploadQuick(false)
-			}
-		})
+			return
+		}
+		label := a.t("quick.upload")
+		if state.busy && len(state.data) > 0 {
+			label = a.t("quick.uploading")
+		}
+		disabled := state.busy || state.conflict || len(state.data) == 0 || a.quickProfile() == nil
+		if a.primaryAction(c, iconUpload, label, disabled).Height(30).Clicked() && !disabled {
+			a.uploadQuick(false)
+		}
 	})
 }
 
@@ -364,6 +447,7 @@ func (a *App) applyQuickImage(data []byte, name, ext string) {
 				return
 			}
 			a.quick.data = encoded
+			a.quick.hash = hashOf(encoded)
 			a.quick.size = int64(len(encoded))
 			if img != nil {
 				a.quick.bitmap = ui.NewBitmap(img)
@@ -439,12 +523,7 @@ func (a *App) uploadQuick(rename bool) {
 	if rename {
 		suffix = "-" + time.Now().Format("150405")
 	}
-	key := renderTemplate(pathTemplates[a.prefs.Quick.Template], templateValues{
-		date: time.Now(),
-		hash: hashOf(state.data),
-		name: state.name,
-		ext:  quickExtension(a.prefs.Quick.WebP),
-	}, suffix)
+	key := a.quickKey(suffix)
 	ref := core.ObjectRef{ProfileID: profile.ID, Bucket: bucket, Key: key}
 	data := state.data
 	format := a.prefs.Quick.Format

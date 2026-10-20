@@ -3,7 +3,6 @@ package desktop
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -83,57 +82,35 @@ func (a *App) closePreview() {
 	a.preview = previewState{}
 }
 
-// previewOverlay draws the Quick Look panel over the window.
+// previewOverlay draws the Quick Look panel over the window: the preview,
+// and the object's facts beside it.
 func (a *App) previewOverlay(c *ui.Context) {
 	state := &a.preview
 	if !state.open {
 		return
 	}
-	ui.Overlay(c, func() {
-		backdrop := ui.Row(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
-			Justify(ui.Center).AlignItems(ui.Center).Background(a.pal.scrim)
-		backdrop.Children(func() {
-			panel := ui.Column(c).Width(720).MaxHeightPercent(88).Radius(16).
-				Background(a.pal.background).Border(1, a.pal.borderStrong).
-				Shadow(0, 24, 60, 0, ui.RGBA(0, 0, 0, 0.22))
-			panel.Clip()
-			panel.Children(func() {
-				a.previewHeader(c)
-				ui.Column(c).Grow(1).Children(func() { a.previewBody(c) })
-				a.previewMeta(c)
-			})
-			if backdrop.PressedOutside() || backdrop.OverlayShortcut(0, ui.KeyEscape) ||
-				backdrop.OverlayShortcut(0, ui.KeySpace) {
-				a.closePreview()
-			}
-			if backdrop.OverlayShortcut(0, ui.KeyLeft) {
-				a.stepPreview(-1)
-			}
-			if backdrop.OverlayShortcut(0, ui.KeyRight) {
-				a.stepPreview(1)
-			}
+	overlay := a.dialog(c, 860, false, false, a.closePreview, func() {
+		ui.Row(c).Height(42).Padding(0, 10, 0, 12).Gap(10).AlignItems(ui.Center).Shrink(0).
+			BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
+			a.ghostButton(c, iconX, a.t("common.close"), 28, false, a.closePreview)
+			ui.Text(c, basename(state.key)).FontSize(13).FontWeight(600).SingleLine().
+				TextAlign(ui.Center).Grow(1).MinWidth(0)
+			ui.Text(c, a.t("quicklook.hint")).FontSize(11.5).TextColor(a.pal.faint).SingleLine()
+		})
+		ui.Row(c).Height(420).Shrink(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Clip().Children(func() { a.previewBody(c) })
+			a.previewMeta(c)
 		})
 	})
-}
-
-// previewHeader names the object and offers the panel's actions.
-func (a *App) previewHeader(c *ui.Context) {
-	state := &a.preview
-	ui.Row(c).Height(46).PaddingX(16).Gap(10).AlignItems(ui.Center).
-		BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
-		ui.Icon(c, iconOf(kindOf(state.info.Key, state.info.ContentType, false))).
-			FontSize(18).TextColor(a.pal.kindPaletteOf(kindOf(state.info.Key, state.info.ContentType, false)).foreground)
-		ui.Text(c, basename(state.key)).FontSize(13.5).Bold().SingleLine().Grow(1)
-		if a.iconAction(c, iconChevronLeft, a.t("browser.back")) {
-			a.stepPreview(-1)
-		}
-		if a.iconAction(c, iconChevronRight, a.t("browser.forward")) {
-			a.stepPreview(1)
-		}
-		if a.iconAction(c, iconX, a.t("common.close")) {
-			a.closePreview()
-		}
-	})
+	if overlay.OverlayShortcut(0, ui.KeySpace) {
+		a.closePreview()
+	}
+	if overlay.OverlayShortcut(0, ui.KeyLeft) {
+		a.stepPreview(-1)
+	}
+	if overlay.OverlayShortcut(0, ui.KeyRight) {
+		a.stepPreview(1)
+	}
 }
 
 // stepPreview moves to the previous or next object of the folder.
@@ -163,46 +140,49 @@ func (a *App) previewBody(c *ui.Context) {
 	state := &a.preview
 	switch {
 	case state.busy:
-		ui.Column(c).Height(320).Center().Gap(10).Children(func() {
-			ui.Spinner(c).Label(a.t("quicklook.loading"))
-			ui.Text(c, a.t("quicklook.loading")).FontSize(12.5).TextColor(a.pal.muted)
-		})
+		a.previewLoading(c)
 		return
 	case state.err != nil:
-		a.previewNotice(c, iconCircleAlert, a.t("quicklook.failed"), a.errorText(state.err), true)
+		a.previewNotice(c, a.t("quicklook.failed"), a.errorText(state.err), true)
 		return
 	}
 
 	kind := kindOf(state.info.Key, state.info.ContentType, false)
 	switch previewMode(kind) {
 	case "image":
-		a.previewImage(c, kind)
+		a.previewImage(c)
 	case "text":
 		a.previewText(c)
 	default:
-		a.previewNotice(c, iconOf(kind), a.t("quicklook.unsupported"),
-			a.t("quicklook.unsupportedDesc"), false)
+		a.previewNotice(c, a.t("quicklook.unsupported"), a.t("quicklook.unsupportedDesc"), false)
 	}
 }
 
-// previewImage fetches and draws the object's bitmap.
-func (a *App) previewImage(c *ui.Context, kind string) {
+func (a *App) previewLoading(c *ui.Context) {
+	ui.Row(c).Fill().Center().Gap(8).Children(func() {
+		ui.Spinner(c).Size(12, 12).Label(a.t("quicklook.loading"))
+		ui.Text(c, a.t("quicklook.loading")).FontSize(12.5).TextColor(a.pal.muted)
+	})
+}
+
+// previewImage fetches and draws the object's bitmap over a striped tile.
+func (a *App) previewImage(c *ui.Context) {
 	state := &a.preview
 	if state.link.URL == "" {
-		a.previewNotice(c, iconImage, a.t("quicklook.unsupported"),
-			a.t("quicklook.unsupportedDesc"), false)
+		a.previewNotice(c, a.t("quicklook.unsupported"), a.t("quicklook.unsupportedDesc"), false)
 		return
 	}
-	if state.bitmap == nil {
-		if !state.fetching {
-			state.fetching = true
-			go a.fetchPreviewImage(state.key, state.link)
+	if state.bitmap == nil && !state.fetching {
+		state.fetching = true
+		go a.fetchPreviewImage(state.key, state.link)
+	}
+	ui.Column(c).Fill().Padding(16).Center().Background(a.pal.tile).
+		Stripes(a.pal.stripe, 8, 8, 135).Children(func() {
+		if state.bitmap == nil {
+			ui.Spinner(c).Size(16, 16).Label(a.t("quicklook.loading"))
+			return
 		}
-		ui.Column(c).Height(320).Center().Children(func() { ui.Spinner(c) })
-		return
-	}
-	ui.Column(c).Height(320).Padding(16).Center().Background(a.pal.tile).Children(func() {
-		ui.Image(c, state.bitmap).Fit(ui.Contain).Grow(1)
+		ui.Image(c, state.bitmap).Fit(ui.Contain).Grow(1).FillWidth()
 	})
 }
 
@@ -256,33 +236,40 @@ func (a *App) readImage(ctx context.Context, link core.ShareLink) (image.Image, 
 // previewText shows the first part of a text object.
 func (a *App) previewText(c *ui.Context) {
 	state := &a.preview
-	ui.Column(c).Grow(1).Children(func() {
+	ui.Column(c).Fill().Background(a.pal.popover).Children(func() {
 		if state.text.Truncated {
-			ui.Row(c).PaddingX(16).PaddingY(6).Children(func() {
+			ui.Row(c).Gap(6).Padding(8, 14).AlignItems(ui.Center).Background(a.pal.warningBg).Children(func() {
+				ui.Icon(c, iconAlertTriangle).FontSize(12).TextColor(a.pal.warningText)
 				ui.Text(c, a.tf("quicklook.truncated", "size", formatBytes(state.info.Size))).
-					FontSize(11.5).TextColor(a.pal.muted)
+					FontSize(12).TextColor(a.pal.warningText)
 			})
 		}
-		ui.Scroll(c).Height(320).Padding(16).Children(func() {
-			ui.Text(c, state.text.Text).FontSize(12).Font("monospace").Selectable()
+		ui.Scroll(c).Grow(1).MinHeight(0).Padding(14, 16).Children(func() {
+			ui.Text(c, state.text.Text).FontSize(12).LineHeight(1.65).Font("monospace").Selectable()
 		})
 	})
 }
 
 // previewNotice explains why the preview shows no content.
-func (a *App) previewNotice(c *ui.Context, glyph *ui.SVG, title, description string, retry bool) {
-	ui.Column(c).Height(320).Center().Padding(24).Children(func() {
-		ui.Column(c).MaxWidth(360).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, glyph).FontSize(30).TextColor(a.pal.faint)
-			ui.Text(c, title).FontSize(13.5).Bold().TextAlign(ui.Center)
-			ui.Text(c, description).FontSize(12).TextColor(a.pal.muted).TextAlign(ui.Center)
-			ui.Row(c).Gap(8).Children(func() {
+func (a *App) previewNotice(c *ui.Context, title, description string, retry bool) {
+	ui.Column(c).Fill().Center().Padding(20).Children(func() {
+		ui.Column(c).MaxWidth(340).Gap(8).AlignItems(ui.Center).Children(func() {
+			tile, ink := a.pal.mutedFill, a.pal.muted
+			if retry {
+				tile, ink = a.pal.destructiveBg, a.pal.destructive
+			}
+			ui.Box(c).Size(48, 48).Radius(14).Center().Background(tile).Children(func() {
+				ui.Icon(c, iconAlertTriangle).FontSize(18).TextColor(ink)
+			})
+			ui.Text(c, title).FontSize(14).FontWeight(600).TextAlign(ui.Center)
+			ui.Text(c, description).FontSize(12.5).LineHeight(1.6).TextColor(a.pal.muted).TextAlign(ui.Center)
+			ui.Row(c).Gap(8).Margin(6, 0, 0, 0).Children(func() {
 				if retry {
-					if ui.Button(c, a.t("quicklook.regenerate")).Clicked() {
+					if a.secondaryButton(c, iconRefresh, a.t("quicklook.regenerate")).Height(26).Clicked() {
 						a.openPreview(a.preview.key)
 					}
 				}
-				if ui.Button(c, a.t("common.download")).Clicked() {
+				if a.secondaryButton(c, iconDownload, a.t("common.download")).Height(26).Clicked() {
 					a.download([]entry{{key: a.preview.key, name: basename(a.preview.key)}})
 				}
 			})
@@ -290,52 +277,73 @@ func (a *App) previewNotice(c *ui.Context, glyph *ui.SVG, title, description str
 	})
 }
 
-// previewMeta lists the object's metadata under the preview.
+// previewMeta lists the object's facts and metadata beside the preview.
 func (a *App) previewMeta(c *ui.Context) {
 	state := &a.preview
-	if state.info.Key == "" {
-		return
-	}
-	ui.Column(c).Gap(4).Padding(12, 16, 14, 16).
-		BorderWidth(1, 0, 0, 0).BorderColor(a.pal.border).
-		Background(a.pal.sidebar).Children(func() {
-		ui.Row(c).Gap(12).Children(func() {
-			a.metaCell(c, a.t("quicklook.key"), state.info.Key, true)
-			a.metaCell(c, a.t("quicklook.size"), formatBytes(state.info.Size), false)
-			a.metaCell(c, a.t("quicklook.modified"), formatDate(state.info.LastModified), false)
-			a.metaCell(c, a.t("quicklook.contentType"),
-				displayType(state.info.Key, state.info.ContentType), false)
-		})
-		if state.info.ETag != "" {
-			a.metaCell(c, a.t("quicklook.etag"), state.info.ETag, true)
-		}
-		if len(state.info.Metadata) > 0 {
-			keys := make([]string, 0, len(state.info.Metadata))
-			for name := range state.info.Metadata {
-				keys = append(keys, name)
-			}
-			sort.Strings(keys)
+	info := state.info
+	kind := kindOf(info.Key, info.ContentType, false)
+	ui.Scroll(c).Width(260).Shrink(0).BorderWidth(0, 0, 0, 1).BorderColor(a.pal.border).Children(func() {
+		ui.Column(c).Gap(12).Padding(16).Children(func() {
 			ui.Column(c).Gap(2).Children(func() {
-				ui.Text(c, a.t("quicklook.metadata")).FontSize(10.5).TextColor(a.pal.faint)
-				for _, name := range keys {
-					ui.Text(c, fmt.Sprintf("%s: %s", name, state.info.Metadata[name])).
-						FontSize(11.5).TextColor(a.pal.muted).SingleLine()
+				ui.Text(c, basename(state.key)).FontSize(14).FontWeight(650)
+				sub := a.t("kinds." + kind)
+				if info.Key != "" {
+					sub += " · " + formatBytes(info.Size)
+				}
+				ui.Text(c, sub).FontSize(12).TextColor(a.pal.muted)
+			})
+			ui.Row(c).Gap(6).Children(func() {
+				if a.secondaryButton(c, iconDownload, a.t("common.download")).Height(26).Grow(1).Clicked() {
+					a.download([]entry{{key: state.key, name: basename(state.key)}})
+				}
+				if a.secondaryButton(c, iconLink, a.t("common.share")).Height(26).Grow(1).Clicked() {
+					key := state.key
+					a.closePreview()
+					a.openShare([]entry{{key: key, name: basename(key)}})
 				}
 			})
-		}
-		ui.Text(c, a.t("quicklook.note")).FontSize(10.5).TextColor(a.pal.faint)
+			if info.Key == "" {
+				return
+			}
+			ui.Column(c).Children(func() {
+				a.metaField(c, a.t("quicklook.key"), info.Key, true)
+				a.metaField(c, a.t("quicklook.size"), formatBytes(info.Size), false)
+				a.metaField(c, a.t("quicklook.modified"), formatDate(info.LastModified), false)
+				a.metaField(c, a.t("quicklook.contentType"), displayType(info.Key, info.ContentType), false)
+				if info.ETag != "" {
+					a.metaField(c, a.t("quicklook.etag"), info.ETag, true)
+				}
+			})
+			ui.Column(c).Gap(5).Children(func() {
+				ui.Text(c, a.t("quicklook.metadata")).FontSize(11).TextColor(a.pal.faint)
+				if len(info.Metadata) == 0 {
+					ui.Text(c, a.t("common.none")).FontSize(12).TextColor(a.pal.muted)
+				}
+				keys := make([]string, 0, len(info.Metadata))
+				for name := range info.Metadata {
+					keys = append(keys, name)
+				}
+				sort.Strings(keys)
+				for _, name := range keys {
+					ui.Column(c).Padding(6, 8).Radius(7).Background(a.pal.sidebar).Children(func() {
+						ui.Text(c, name).FontSize(11).Font("monospace").TextColor(a.pal.muted)
+						ui.Text(c, info.Metadata[name]).FontSize(11).Font("monospace").Selectable()
+					})
+				}
+			})
+			ui.Text(c, a.t("quicklook.note")).FontSize(11).LineHeight(1.5).TextColor(a.pal.faint)
+		})
 	})
 }
 
-// metaCell is one labelled value of the metadata block.
-func (a *App) metaCell(c *ui.Context, label, value string, grow bool) {
-	cell := ui.Column(c).Gap(2)
-	if grow {
-		cell.Grow(1)
-	}
-	cell.Children(func() {
-		ui.Text(c, label).FontSize(10.5).TextColor(a.pal.faint)
-		ui.Text(c, value).FontSize(11.5).SingleLine().TextColor(a.pal.muted)
+// metaField is one labeled fact of the object.
+func (a *App) metaField(c *ui.Context, label, value string, mono bool) {
+	ui.Column(c).Gap(1).Padding(7, 0).BorderWidth(1, 0, 0, 0).BorderColor(a.pal.border).Children(func() {
+		ui.Text(c, label).FontSize(11).TextColor(a.pal.faint)
+		text := ui.Text(c, value).FontSize(12).Selectable()
+		if mono {
+			text.Font("monospace")
+		}
 	})
 }
 

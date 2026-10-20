@@ -192,6 +192,7 @@ type quickState struct {
 	source   string
 	name     string
 	data     []byte
+	hash     string
 	bitmap   *ui.Bitmap
 	width    int
 	height   int

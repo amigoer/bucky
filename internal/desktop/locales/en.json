@@ -19,7 +19,6 @@
     "optional": "Optional",
     "back": "Back",
     "forward": "Forward",
-    "bucket": "Bucket",
     "buckets": "Buckets",
     "items_one": "{{count}} item",
     "items_other": "{{count}} items"
@@ -98,8 +97,7 @@
     "dropRelease": "Release to upload to {{place}}",
     "dropReadOnly": "Read-only connections can’t upload",
     "previewKey": "Key",
-    "previewModified": "Modified",
-    "previewSize": "Size"
+    "previewModified": "Modified"
   },
   "search": {
     "hint": "Type a name to search this folder and its subfolders, or jump to any connection, bucket or folder.",
@@ -343,18 +341,15 @@
       "errorReason1": "No OAuth client ID has been saved in settings.",
       "errorReason2": "Account API Tokens Write was not granted during authorization.",
       "openSettings": "Open settings",
-      "authorization": "Cloudflare authorization",
       "editLead": "The account and bucket are fixed. Renaming the connection or changing the public URL keeps the current R2 token."
     },
     "flow": {
       "title": "Add connection",
-      "desc": "Connect a Cloudflare R2 bucket to Bucky",
-      "close": "Close"
+      "desc": "Connect a Cloudflare R2 bucket to Bucky"
     },
     "manual": {
       "title": "Add with access keys",
       "lead": "Create an R2 API token for the bucket in the Cloudflare dashboard, then paste its Access Key ID and Secret Access Key here.",
-      "facts": "Connection",
       "asideTitle": "Creating an R2 token",
       "asideStep1": "Open R2 → Manage API Tokens in the Cloudflare dashboard.",
       "asideStep2": "Create a token with Object Read & Write, scoped to the bucket you want.",
