@@ -55,59 +55,98 @@ func (a *App) selectionBar(c *ui.Context) {
 	if len(choice) == 0 {
 		return
 	}
+	var size int64
+	for _, row := range choice {
+		size += row.size
+	}
+	readOnly := a.readOnly()
+	white := ui.Hex("#f5f5f7")
 	ui.Overlay(c, func() {
-		ui.Row(c).Absolute().Left(0).Right(0).Bottom(42).Justify(ui.Center).Children(func() {
-			bar := ui.Row(c).Padding(4, 6, 4, 14).Radius(12).Gap(2).
-				AlignItems(ui.Center).Background(a.pal.hud).
-				Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.28))
+		ui.Row(c).Absolute().Left(0).Right(0).Bottom(22).Justify(ui.Center).Children(func() {
+			bar := ui.Row(c).Padding(5).Radius(14).Gap(2).AlignItems(ui.Center).
+				Background(a.pal.hud).Border(0.5, ui.RGBA(255, 255, 255, 0.08)).
+				Shadow(0, 14, 36, 0, ui.RGBA(0, 0, 0, 0.3))
 			bar.Children(func() {
-				ui.Text(c, a.tn("selection.summary", len(choice), "count", len(choice))).
-					FontSize(12).TextColor(ui.Hex("#ffffff")).Padding(0, 6, 0, 4)
+				ui.Row(c).Gap(4).Padding(0, 12, 0, 10).AlignItems(ui.Center).Children(func() {
+					count := a.tn("browser.items", len(choice), "count", formatCount(int64(len(choice))))
+					ui.Text(c, count).FontSize(13).FontWeight(600).TextColor(white).SingleLine()
+					ui.Text(c, "· "+formatBytes(size)).FontSize(13).
+						TextColor(ui.RGBA(255, 255, 255, 0.55)).SingleLine()
+				})
 				barSeparator(c)
-				a.barButton(c, iconDownload, a.t("menu.download"), false, func() {
+				a.barButton(c, iconDownload, a.t("menu.download"), barFilled, false, func() {
 					a.download(choice)
 				})
-				a.barButton(c, iconShare, a.t("menu.share"), false, func() {
+				a.barButton(c, iconLink, a.t("menu.share"), barPlain, false, func() {
 					a.openShare(choice)
 				})
-				if !a.readOnly() {
-					barSeparator(c)
-					a.barButton(c, iconArrowUpRight, a.t("selection.copy"), false, func() {
-						a.openPlan("copy", choice)
-					})
-					a.barButton(c, iconArrowRightLeft, a.t("selection.move"), false, func() {
-						a.openPlan("move", choice)
-					})
-					a.barButton(c, iconTrash, a.t("common.delete"), true, func() {
-						a.openPlan("delete", choice)
-					})
-				}
-				barSeparator(c)
-				a.barButton(c, iconX, a.t("selection.clear"), false, func() {
-					a.clearSelection()
+				a.barButton(c, iconCopy, a.t("selection.copy"), barPlain, readOnly, func() {
+					a.openPlan("copy", choice)
 				})
+				a.barButton(c, iconArrowRightLeft, a.t("selection.move"), barPlain, readOnly, func() {
+					a.openPlan("move", choice)
+				})
+				a.barButton(c, iconTrash, a.t("common.delete"), barDestructive, readOnly, func() {
+					a.openPlan("delete", choice)
+				})
+				barSeparator(c)
+				label := a.t("selection.clear")
+				clear := ui.Button(c, "").Label(label).Tooltip(label).Size(32, 32).Radius(9).
+					Border(0, ui.Transparent).Background(ui.Transparent)
+				color := ui.RGBA(255, 255, 255, 0.6)
+				if clear.Hovered() {
+					clear.Background(ui.RGBA(255, 255, 255, 0.1))
+					color = ui.Hex("#ffffff")
+				}
+				clear.Children(func() { ui.Icon(c, iconX).FontSize(15).TextColor(color) })
+				if clear.Clicked() {
+					a.clearSelection()
+				}
 			})
 		})
 	})
 }
 
-// barButton is one action of the floating selection bar.
-func (a *App) barButton(c *ui.Context, glyph *ui.SVG, label string, destructive bool, action func()) {
-	button := ui.Button(c, "").Label(label).Tooltip(label).Padding(4, 8).Radius(6)
-	button.Children(func() {
-		ui.Icon(c, glyph).FontSize(14).TextColor(ui.Hex("#ffffff"))
-		ui.Text(c, label).FontSize(12).TextColor(ui.Hex("#ffffff")).SingleLine()
-	})
-	if destructive && button.Hovered() {
-		button.Background(a.pal.destructive)
+// The looks of a selection bar button: the first action is filled, delete
+// is red.
+const (
+	barPlain = iota
+	barFilled
+	barDestructive
+)
+
+// barButton is one action of the floating selection bar. One a read-only
+// connection does not allow stays in place, dimmed, and says why.
+func (a *App) barButton(c *ui.Context, glyph *ui.SVG, label string, look int, disabled bool, action func()) {
+	button := ui.Button(c, "").Label(label).Height(32).PaddingX(11).Radius(9).
+		Border(0, ui.Transparent).Background(ui.Transparent).Disabled(disabled)
+	color := ui.Hex("#f5f5f7")
+	rest, hover := ui.Transparent, ui.RGBA(255, 255, 255, 0.1)
+	switch look {
+	case barFilled:
+		rest, hover = ui.RGBA(255, 255, 255, 0.1), ui.RGBA(255, 255, 255, 0.16)
+	case barDestructive:
+		color, hover = ui.Oklch(0.76, 0.14, 27), ui.Oklch(0.6, 0.2, 27).Alpha(0.22)
 	}
-	if button.Clicked() {
+	button.Background(rest)
+	if disabled {
+		button.Opacity(0.4).Tooltip(a.t("browser.readOnlyTip"))
+	} else if button.Hovered() {
+		button.Background(hover)
+	}
+	button.Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, glyph).FontSize(15).TextColor(color)
+			ui.Text(c, label).FontSize(13).TextColor(color).SingleLine()
+		})
+	})
+	if !disabled && button.Clicked() {
 		action()
 	}
 }
 
 func barSeparator(c *ui.Context) {
-	ui.Box(c).Width(1).Height(16).Margin(0, 4).Background(ui.RGBA(255, 255, 255, 0.16))
+	ui.Box(c).Width(1).Height(18).Margin(0, 4).Background(ui.RGBA(255, 255, 255, 0.16))
 }
 
 // joinLines joins keys with newlines for the clipboard.

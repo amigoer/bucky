@@ -48,25 +48,19 @@ type prefs struct {
 	SidebarHidden bool            `json:"sidebarHidden"`
 	Collapsed     map[string]bool `json:"collapsed"`
 	Quick         quickPrefs      `json:"quick"`
-
-	// ColumnOrder and ColumnWidths keep the file list's columns as the
-	// user arranged them.
-	ColumnOrder  []string           `json:"columnOrder"`
-	ColumnWidths map[string]float32 `json:"columnWidths"`
 }
 
 func defaultPrefs() *prefs {
 	return &prefs{
-		Theme:        themeSystem,
-		Accent:       "blue",
-		Language:     systemLanguage(),
-		View:         viewList,
-		SortKey:      "name",
-		SortDir:      1,
-		Concurrency:  2,
-		Collapsed:    map[string]bool{},
-		Quick:        quickPrefs{Compress: true, WebP: true, Format: "markdown"},
-		ColumnWidths: map[string]float32{},
+		Theme:       themeSystem,
+		Accent:      "blue",
+		Language:    systemLanguage(),
+		View:        viewList,
+		SortKey:     "name",
+		SortDir:     1,
+		Concurrency: 2,
+		Collapsed:   map[string]bool{},
+		Quick:       quickPrefs{Compress: true, WebP: true, Format: "markdown"},
 	}
 }
 
@@ -109,9 +103,6 @@ func (s *prefsStore) load() *prefs {
 	}
 	if p.Collapsed == nil {
 		p.Collapsed = map[string]bool{}
-	}
-	if p.ColumnWidths == nil {
-		p.ColumnWidths = map[string]float32{}
 	}
 	if p.Concurrency < 1 {
 		p.Concurrency = 2

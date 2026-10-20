@@ -4,64 +4,113 @@ import "github.com/egoist/mygo/ui"
 
 // browserToolbar is the row of controls above the file list.
 func (a *App) browserToolbar(c *ui.Context) {
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Grow(1).Gap(6).AlignItems(ui.Center).Children(func() {
 		a.toolButton(c, iconChevronLeft, a.t("browser.back"), len(a.backStack) == 0, a.goBack)
 		a.toolButton(c, iconChevronRight, a.t("browser.forward"), len(a.forwardStack) == 0, a.goForward)
 		a.breadcrumbBar(c)
-		ui.Spacer(c)
-		a.searchField(c)
-		a.viewSwitch(c)
-		a.sortButton(c)
-		a.uploadButton(c)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			a.searchField(c)
+			a.viewSwitch(c)
+			a.sortButton(c)
+			a.uploadButton(c)
+		})
 	})
 }
 
 // toolButton is a small icon-only button of the toolbar.
 func (a *App) toolButton(c *ui.Context, glyph *ui.SVG, label string, disabled bool, action func()) {
+	button := a.plainButton(c, label, 28, 28).Disabled(disabled)
+	color := a.pal.muted
 	if disabled {
-		button := ui.Button(c, "").Label(label).Tooltip(label).Size(28, 28).Disabled(true)
+		color = a.pal.faint
 		button.Background(ui.Transparent)
-		button.Children(func() { ui.Icon(c, glyph).FontSize(16) })
-		return
 	}
-	a.ghostButton(c, glyph, label, 28, false, action)
+	button.Children(func() { ui.Icon(c, glyph).FontSize(16).TextColor(color) })
+	if !disabled && button.Clicked() {
+		action()
+	}
 }
 
-// breadcrumbBar shows the path to the folder in view.
+// breadcrumbBar shows the connection, the bucket and the path to the folder
+// in view, then how many items it holds.
 func (a *App) breadcrumbBar(c *ui.Context) {
 	if a.location == nil {
 		return
 	}
 	location := *a.location
+	profile := a.currentProfile()
 	crumbs := breadcrumbs(location.Prefix)
-	items := make([]string, 0, len(crumbs)+1)
-	items = append(items, location.Bucket)
-	for _, step := range crumbs {
-		items = append(items, step.name)
-	}
-	chosen := -1
-	bar := ui.Breadcrumbs(c, items, &chosen).Label(a.t("common.bucket"))
-	bar.Children(func() {
-		ui.Icon(c, iconDatabase).FontSize(14).TextColor(a.pal.muted)
-	})
-	if bar.Changed() && chosen >= 0 {
-		prefix := ""
-		if chosen > 0 && chosen-1 < len(crumbs) {
-			prefix = crumbs[chosen-1].prefix
+	ui.Row(c).Grow(1).MinWidth(0).Gap(1).MarginStart(6).AlignItems(ui.Center).Clip().Children(func() {
+		if profile != nil {
+			a.crumb(c, profile.Name, false, func() {
+				ui.Box(c).Size(16, 16).Children(func() { a.providerTile(c, profile.ProviderType, 16) })
+			}, func() {
+				a.navigate(Location{ProfileID: location.ProfileID, Bucket: location.Bucket})
+			})
+			a.crumbSeparator(c)
 		}
-		a.navigate(Location{ProfileID: location.ProfileID, Bucket: location.Bucket, Prefix: prefix})
+		a.crumb(c, location.Bucket, len(crumbs) == 0, nil, func() {
+			a.navigate(Location{ProfileID: location.ProfileID, Bucket: location.Bucket})
+		})
+		for i, step := range crumbs {
+			prefix := step.prefix
+			a.crumbSeparator(c)
+			a.crumb(c, step.name, i == len(crumbs)-1, nil, func() {
+				a.navigate(Location{ProfileID: location.ProfileID, Bucket: location.Bucket, Prefix: prefix})
+			})
+		}
+		count := a.tn("browser.items", len(a.browse.shown), "count", formatCount(int64(len(a.browse.shown))))
+		ui.Text(c, count).FontSize(12).TextColor(a.pal.faint).SingleLine().MarginStart(8)
+	})
+}
+
+// crumb is one step of the path; the last is the folder in view.
+func (a *App) crumb(c *ui.Context, label string, last bool, lead func(), action func()) {
+	item := ui.Row(c).Height(26).PaddingX(8).Gap(7).Radius(6).AlignItems(ui.Center).
+		Shrink(0).Label(label)
+	if !last && item.Hovered() {
+		item.Background(a.pal.hover)
+	}
+	item.Children(func() {
+		if lead != nil {
+			lead()
+		}
+		text := ui.Text(c, label).FontSize(13).SingleLine()
+		if last {
+			text.FontWeight(600).TextColor(a.pal.text)
+		} else {
+			text.TextColor(a.pal.muted)
+		}
+	})
+	if !last && item.Clicked() {
+		action()
 	}
 }
 
-// searchField starts and clears the search inside the folder in view.
+func (a *App) crumbSeparator(c *ui.Context) {
+	ui.Icon(c, iconChevronRight).FontSize(12).TextColor(a.pal.faint)
+}
+
+// searchField searches inside the folder in view. It folds to its icon
+// until it is used.
 func (a *App) searchField(c *ui.Context) {
 	state := &a.browse.search
-	field := ui.SearchField(c, &state.query).Label(a.t("browser.searchPlaceholder")).Width(220)
-	if field.Changed() {
+	if !a.browse.searchOpen && state.query == "" {
+		label := a.t("browser.searchTip")
+		button := a.plainButton(c, label, 28, 28)
+		button.Children(func() { ui.Icon(c, iconSearch).FontSize(16).TextColor(a.pal.muted) })
+		if button.Clicked() {
+			a.browse.searchOpen = true
+		}
+		return
+	}
+	field := ui.SearchField(c, &state.query).Label(a.t("browser.searchPlaceholder")).
+		Width(220).Height(28).AutoFocus()
+	if field.Changed() || field.Submitted() {
 		a.setQuery(state.query)
 	}
-	if field.Submitted() {
-		a.setQuery(state.query)
+	if state.query == "" && !field.FocusWithin() {
+		a.browse.searchOpen = false
 	}
 }
 
@@ -75,28 +124,29 @@ func (a *App) viewSwitch(c *ui.Context) {
 		}
 	}
 	seg := ui.SegmentedBase(c, &index, len(views))
-	seg.Track.Padding(2).Radius(8).Background(a.pal.field).Children(func() {
+	seg.Track.Padding(2).Radius(8).Background(a.pal.mutedFill).Children(func() {
 		glyphs := []*ui.SVG{iconList, iconLayoutGrid, iconColumns}
 		labels := []string{a.t("browser.list"), a.t("browser.grid"), a.t("browser.columns")}
 		for i, glyph := range glyphs {
-			segment := seg.Segment(i).Padding(4, 8).Radius(6).Label(labels[i]).Tooltip(labels[i])
+			segment := seg.Segment(i).Size(32, 24).Center().Radius(6).Label(labels[i]).Tooltip(labels[i])
+			color := a.pal.muted
 			if i == index {
-				segment.Background(a.pal.background)
+				segment.Background(a.pal.thumb).Shadow(0, 1, 2, 0, a.pal.thumbShadow)
+				color = a.pal.text
 			}
-			segment.Children(func() { ui.Icon(c, glyph).FontSize(15) })
+			segment.Children(func() { ui.Icon(c, glyph).FontSize(15).TextColor(color) })
 		}
 	})
 	if index >= 0 && index < len(views) && views[index] != a.browse.view {
-		a.browse.view = views[index]
-		a.prefs.View = a.browse.view
-		a.savePrefs()
+		a.setView(views[index])
 	}
 }
 
 // sortButton chooses the column and the direction rows are sorted by.
 func (a *App) sortButton(c *ui.Context) {
-	button := ui.Button(c, "").Label(a.t("browser.sort")).Tooltip(a.t("browser.sort")).Size(28, 28)
-	button.Children(func() { ui.Icon(c, iconArrowDownUp).FontSize(16) })
+	label := a.t("browser.sort")
+	button := a.plainButton(c, label, 30, 28)
+	button.Children(func() { ui.Icon(c, iconArrowDownUp).FontSize(16).TextColor(a.pal.muted) })
 	button.Menu(func(m *ui.Menu) {
 		for _, option := range []struct{ key, label string }{
 			{"name", a.t("browser.sortName")},
@@ -108,12 +158,11 @@ func (a *App) sortButton(c *ui.Context) {
 			}
 		}
 		m.Separator()
-		direction := a.t("browser.ascending")
-		if a.browse.sortDir < 0 {
-			direction = a.t("browser.descending")
+		if m.Item(a.t("browser.ascending")).Checked(a.browse.sortDir > 0).Chosen() {
+			a.setSort(a.browse.sortKey, 1)
 		}
-		if m.Item(direction).Chosen() {
-			a.setSort(a.browse.sortKey, -a.browse.sortDir)
+		if m.Item(a.t("browser.descending")).Checked(a.browse.sortDir < 0).Chosen() {
+			a.setSort(a.browse.sortKey, -1)
 		}
 	})
 }
@@ -124,36 +173,25 @@ func (a *App) setSort(key string, direction int) {
 		direction = 1
 	}
 	a.browse.sortKey, a.browse.sortDir = key, direction
-	a.browse.sort = ui.SortOrder{Column: key, Descending: direction < 0}
 	a.prefs.SortKey, a.prefs.SortDir = key, direction
 	a.savePrefs()
 	a.rebuildEntries()
 }
 
-// uploadButton uploads files or a folder, or opens the image host.
+// uploadButton is the page's one primary action: upload files or a folder.
 func (a *App) uploadButton(c *ui.Context) {
-	label := a.t("browser.upload")
-	if a.readOnly() {
-		button := ui.Button(c, label).Disabled(true).Tooltip(a.t("browser.readOnlyTip"))
-		button.Children(func() { ui.Icon(c, iconUpload).FontSize(14) })
+	readOnly := a.readOnly()
+	button := a.primaryAction(c, iconUpload, a.t("browser.upload"), readOnly)
+	if readOnly {
+		button.Tooltip(a.t("browser.readOnlyTip"))
 		return
 	}
-	button := ui.Button(c, "").Label(label).Tooltip(a.t("browser.upload"))
-	button.Children(func() {
-		ui.Icon(c, iconUpload).FontSize(14)
-		ui.Text(c, label).FontSize(12.5)
-		ui.Icon(c, iconChevronDown).FontSize(13).TextColor(a.pal.muted)
-	})
 	button.Menu(func(m *ui.Menu) {
 		if m.Item(a.t("browser.uploadFiles")).Chosen() {
 			a.pickAndUpload(false)
 		}
 		if m.Item(a.t("browser.uploadFolder")).Chosen() {
 			a.pickAndUpload(true)
-		}
-		m.Separator()
-		if m.Item(a.t("quick.title")).Chosen() {
-			a.openQuick()
 		}
 	})
 }

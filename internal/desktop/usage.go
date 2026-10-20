@@ -3,6 +3,7 @@ package desktop
 import (
 	"context"
 	"sort"
+	"strconv"
 
 	"github.com/amigoer/bucky/internal/core"
 	"github.com/egoist/mygo/ui"
@@ -10,44 +11,56 @@ import (
 
 // ensureUsage prepares the usage page for the folder in view.
 func (a *App) ensureUsage() {
-	if a.location == nil {
+	scope := a.usageScope()
+	if scope == nil {
 		return
 	}
-	if a.usage.location == nil || !sameLocation(a.usage.location, a.location) {
+	if a.usage.location == nil || !sameLocation(a.usage.location, scope) {
 		a.usage.usage = core.Usage{}
 		a.usage.progress = core.Usage{}
 		a.usage.err = nil
-		a.usage.location = a.location
+		a.usage.location = scope
 	}
 }
 
-// usagePage draws the usage scan of the current folder or bucket.
-func (a *App) usagePage(c *ui.Context) {
-	a.ensureUsage()
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).MaxWidth(880).Gap(16).Padding(20, 24).Margin(0, ui.Auto).Children(func() {
-			ui.Text(c, a.t("usage.note")).FontSize(12).TextColor(a.pal.muted)
-			a.usageControls(c)
-			a.usageBody(c)
-		})
-	})
+// usageScope is what a scan covers: the folder in view, or its whole bucket.
+func (a *App) usageScope() *Location {
+	if a.location == nil {
+		return nil
+	}
+	scope := *a.location
+	if a.usage.wholeBucket {
+		scope.Prefix = ""
+	}
+	return &scope
 }
 
-// usageControls start, stop and choose the scope of a scan.
-func (a *App) usageControls(c *ui.Context) {
-	if a.location == nil {
+// usageToolbar is the rest of the page's title row: what the scan covers,
+// the choice of scope and the scan button.
+func (a *App) usageToolbar(c *ui.Context) {
+	scope := a.usageScope()
+	if scope == nil {
+		ui.Spacer(c)
 		return
 	}
-	location := *a.location
-	scope := a.tf("usage.scopeBucket", "bucket", location.Bucket)
-	if location.Prefix != "" {
-		scope = a.t("usage.scopePrefix") + " · " + location.Prefix
-	}
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Badge(c, scope).Background(a.pal.field).TextColor(a.pal.muted)
-		ui.Spacer(c)
+	ui.Text(c, scope.Bucket+"/"+scope.Prefix).FontSize(12).Font("monospace").
+		TextColor(a.pal.muted).SingleLine().Grow(1).MinWidth(0)
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Shrink(0).Children(func() {
+		if a.location.Prefix != "" {
+			index := 1
+			if a.usage.wholeBucket {
+				index = 0
+			}
+			labels := []string{
+				a.tf("usage.scopeBucket", "bucket", a.location.Bucket), a.t("usage.scopePrefix"),
+			}
+			if a.segments(c, &index, a.t("usage.title"), labels) && !a.usage.scanning {
+				a.usage.wholeBucket = index == 0
+				a.ensureUsage()
+			}
+		}
 		if a.usage.scanning {
-			if ui.Button(c, a.t("usage.cancel")).Clicked() {
+			if a.secondaryButton(c, iconX, a.t("usage.cancel")).Clicked() {
 				a.cancelUsage()
 			}
 			return
@@ -56,9 +69,20 @@ func (a *App) usageControls(c *ui.Context) {
 		if !a.usage.usage.ScannedAt.IsZero() {
 			label = a.t("usage.rescan")
 		}
-		if ui.PrimaryButton(c, label).Clicked() {
-			a.startUsage(location)
+		if a.primaryAction(c, iconPieChart, label, false).Clicked() {
+			a.startUsage(*scope)
 		}
+	})
+}
+
+// usagePage draws the usage scan of the current folder or bucket.
+func (a *App) usagePage(c *ui.Context) {
+	a.ensureUsage()
+	ui.Scroll(c).Fill().Children(func() {
+		ui.Column(c).MaxWidth(920).Gap(18).Padding(22, 28, 48, 28).Children(func() {
+			ui.Text(c, a.t("usage.note")).FontSize(12.5).TextColor(a.pal.muted)
+			a.usageBody(c)
+		})
 	})
 }
 
@@ -66,20 +90,17 @@ func (a *App) usageControls(c *ui.Context) {
 func (a *App) usageBody(c *ui.Context) {
 	state := &a.usage
 	switch {
-	case state.scanning && state.progress.Objects == 0:
-		ui.Column(c).Padding(48).Center().Gap(10).Children(func() {
-			ui.Spinner(c).Label(a.t("usage.scanning"))
-			ui.Text(c, a.t("usage.scanning")).FontSize(12.5).TextColor(a.pal.muted)
-		})
+	case a.location == nil:
+		ui.Text(c, a.t("usage.noBucket")).FontSize(12.5).TextColor(a.pal.muted)
 		return
-	case state.err != nil && state.usage.Objects == 0:
+	case state.err != nil && state.usage.Objects == 0 && !state.scanning:
 		a.errorCard(c, a.tf("usage.failed", "message", a.errorText(state.err)), func() {
-			if a.location != nil {
-				a.startUsage(*a.location)
+			if scope := a.usageScope(); scope != nil {
+				a.startUsage(*scope)
 			}
 		})
 		return
-	case state.usage.ScannedAt.IsZero():
+	case state.usage.ScannedAt.IsZero() && !state.scanning:
 		a.emptyUsage(c)
 		return
 	}
@@ -88,60 +109,87 @@ func (a *App) usageBody(c *ui.Context) {
 	if state.scanning {
 		usage = state.progress
 	}
-	ui.Row(c).Gap(12).Children(func() {
-		a.statCard(c, a.t("usage.objects"), formatCount(usage.Objects))
-		a.statCard(c, a.t("usage.size"), formatBytes(usage.Bytes))
-		a.statCard(c, a.t("usage.scannedAt"), formatTime(usage.ScannedAt))
-		a.statCard(c, a.t("usage.completeness"), a.usageCompleteness())
-	})
+	a.usageStats(c, usage)
 	if state.scanning {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Spinner(c).Size(14, 14)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Spinner(c).Size(12, 12)
 			ui.Text(c, a.tf("usage.progress", "count", formatCount(state.progress.Objects))).
-				FontSize(12).TextColor(a.pal.muted)
+				FontSize(12).TextColor(a.pal.muted).FontFeatures("tnum")
 		})
 	} else if !usage.Complete {
-		ui.Text(c, a.t("usage.partial")).FontSize(12).TextColor(a.pal.warningText)
+		ui.Row(c).Gap(8).Padding(9, 12).Radius(9).AlignItems(ui.Center).
+			Background(a.pal.warningBg).Children(func() {
+			ui.Icon(c, iconAlertTriangle).FontSize(13).TextColor(a.pal.warningText)
+			ui.Text(c, a.t("usage.partial")).FontSize(12.5).TextColor(a.pal.warningText)
+		})
 	}
 	if usage.Objects == 0 {
-		ui.Text(c, a.t("usage.noObjects")).FontSize(12.5).TextColor(a.pal.muted)
+		if !state.scanning {
+			ui.Text(c, a.t("usage.noObjects")).FontSize(12.5).TextColor(a.pal.muted)
+		}
 		return
 	}
-	a.usageBreakdown(c, a.t("usage.byType"), usage.Types, true)
-	a.usageBreakdown(c, a.t("usage.byExtension"), usage.Counts, false)
-}
-
-// usageCompleteness names whether the scan finished.
-func (a *App) usageCompleteness() string {
-	switch {
-	case a.usage.scanning:
-		return a.t("usage.scanning")
-	case a.usage.usage.Complete:
-		return a.t("usage.complete")
-	}
-	return a.t("usage.incomplete")
-}
-
-// statCard is one number of the scan.
-func (a *App) statCard(c *ui.Context, label, value string) {
-	card := ui.Column(c).Grow(1).Gap(4).Padding(12, 14).Radius(10).
-		Background(a.pal.card).Border(1, a.pal.border)
-	card.Children(func() {
-		ui.Text(c, label).FontSize(11).TextColor(a.pal.faint)
-		ui.Text(c, value).FontSize(16).Bold().SingleLine()
+	ui.Row(c).Gap(28).AlignItems(ui.Start).Children(func() {
+		ui.Column(c).Grow(1.2).MinWidth(0).Gap(10).Children(func() {
+			ui.Text(c, a.t("usage.byType")).FontSize(12.5).FontWeight(600)
+			a.typeBreakdown(c, usage.Types)
+		})
+		ui.Column(c).Grow(1).MinWidth(0).Gap(10).Children(func() {
+			ui.Text(c, a.t("usage.byExtension")).FontSize(12.5).FontWeight(600)
+			a.extensionBreakdown(c, usage.Counts)
+		})
 	})
 }
 
-// usageBreakdown shows one split of the scan as a bar and a list.
-func (a *App) usageBreakdown(c *ui.Context, title string, counts map[string]int64, byKind bool) {
-	type slice struct {
-		name  string
-		count int64
+// usageStats is the row of totals, in one card divided between them.
+func (a *App) usageStats(c *ui.Context, usage core.Usage) {
+	completeness, tone := a.t("usage.complete"), a.pal.successText
+	switch {
+	case a.usage.scanning:
+		completeness, tone = a.t("usage.scanning"), a.pal.text
+	case !usage.Complete:
+		completeness, tone = a.t("usage.incomplete"), a.pal.warningText
 	}
-	slices := make([]slice, 0, len(counts))
+	scanned := "—"
+	if !usage.ScannedAt.IsZero() {
+		scanned = formatTime(usage.ScannedAt)
+	}
+	stats := []struct {
+		label, value string
+		color        ui.Color
+	}{
+		{a.t("usage.objects"), formatCount(usage.Objects), a.pal.text},
+		{a.t("usage.size"), formatBytes(usage.Bytes), a.pal.text},
+		{a.t("usage.scannedAt"), scanned, a.pal.text},
+		{a.t("usage.completeness"), completeness, tone},
+	}
+	ui.Row(c).Radius(12).Border(1, a.pal.border).Clip().Children(func() {
+		for i, stat := range stats {
+			cell := ui.Column(c).Grow(1).MinWidth(0).Gap(4).Padding(14, 16)
+			if i < len(stats)-1 {
+				cell.BorderWidth(0, 1, 0, 0).BorderColor(a.pal.border)
+			}
+			cell.Children(func() {
+				ui.Text(c, stat.label).FontSize(11.5).TextColor(a.pal.muted).SingleLine()
+				ui.Text(c, stat.value).FontSize(20).FontWeight(650).LetterSpacing(-0.2).
+					FontFeatures("tnum").TextColor(stat.color).SingleLine()
+			})
+		}
+	})
+}
+
+// countSlice is one share of a scan's object count.
+type countSlice struct {
+	name  string
+	count int64
+}
+
+// sortedCounts orders the shares of a count, the largest first.
+func sortedCounts(counts map[string]int64) ([]countSlice, int64) {
+	slices := make([]countSlice, 0, len(counts))
 	var total int64
 	for name, count := range counts {
-		slices = append(slices, slice{name: name, count: count})
+		slices = append(slices, countSlice{name: name, count: count})
 		total += count
 	}
 	sort.Slice(slices, func(i, j int) bool {
@@ -150,39 +198,65 @@ func (a *App) usageBreakdown(c *ui.Context, title string, counts map[string]int6
 		}
 		return slices[i].name < slices[j].name
 	})
-	if len(slices) > 12 {
-		slices = slices[:12]
-	}
+	return slices, total
+}
 
-	card := ui.Column(c).Gap(10).Padding(16).Radius(12).
-		Background(a.pal.card).Border(1, a.pal.border)
-	card.Children(func() {
-		ui.Text(c, title).FontSize(13).Bold()
-		ui.Row(c).Height(10).Radius(5).Clip().Children(func() {
-			for _, item := range slices {
-				width := float32(0)
-				if total > 0 {
-					width = float32(item.count) / float32(total)
-				}
-				ui.Box(c).WidthPercent(width * 100).FillHeight().
-					Background(a.usageColor(item.name, byKind))
-			}
-		})
+// typeBreakdown splits the objects by kind, as one bar and a table.
+func (a *App) typeBreakdown(c *ui.Context, counts map[string]int64) {
+	slices, total := sortedCounts(counts)
+	ui.Row(c).Height(10).Radius(5).Gap(2).Clip().Background(a.pal.mutedFill).Children(func() {
 		for _, item := range slices {
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Size(10, 10).Radius(3).Background(a.usageColor(item.name, byKind))
-				label := item.name
-				if byKind {
-					label = a.t("kinds." + item.name)
-				}
-				ui.Text(c, label).FontSize(12).SingleLine().Grow(1)
-				ui.Text(c, formatCount(item.count)).FontSize(12).TextColor(a.pal.muted)
+			if total > 0 && item.count > 0 {
+				ui.Box(c).Grow(float32(item.count)).FillHeight().Background(a.usageColor(item.name, true))
+			}
+		}
+	})
+	ui.Column(c).Children(func() {
+		for _, item := range slices {
+			share := float64(0)
+			if total > 0 {
+				share = float64(item.count) / float64(total) * 100
+			}
+			ui.Row(c).Gap(10).Padding(8, 0).AlignItems(ui.Center).
+				BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
+				ui.Box(c).Size(9, 9).Radius(3).Background(a.usageColor(item.name, true))
+				ui.Text(c, a.t("kinds."+item.name)).FontSize(12.5).SingleLine().Grow(1).MinWidth(0)
+				ui.Text(c, formatCount(item.count)).FontSize(12.5).FontFeatures("tnum").
+					TextAlign(ui.End).Width(84).SingleLine()
+				ui.Text(c, strconv.FormatFloat(share, 'f', 1, 64)+"%").FontSize(12.5).
+					FontFeatures("tnum").TextColor(a.pal.muted).TextAlign(ui.End).Width(52).SingleLine()
 			})
 		}
 	})
 }
 
-// usageColor picks the color of one slice of the breakdown.
+// extensionBreakdown lists the most common extensions with bars scaled to
+// the first.
+func (a *App) extensionBreakdown(c *ui.Context, counts map[string]int64) {
+	slices, _ := sortedCounts(counts)
+	if len(slices) > 8 {
+		slices = slices[:8]
+	}
+	ui.Column(c).Children(func() {
+		for _, item := range slices {
+			width := float32(0)
+			if slices[0].count > 0 {
+				width = float32(item.count) / float32(slices[0].count) * 100
+			}
+			ui.Row(c).Gap(10).Padding(8, 0).AlignItems(ui.Center).
+				BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border).Children(func() {
+				ui.Text(c, item.name).FontSize(12).Font("monospace").Width(60).SingleLine()
+				ui.Box(c).Grow(1).Height(6).Radius(3).Clip().Background(a.pal.mutedFill).Children(func() {
+					ui.Box(c).WidthPercent(width).FillHeight().Radius(3).Background(a.pal.primary)
+				})
+				ui.Text(c, formatCount(item.count)).FontSize(12.5).FontFeatures("tnum").
+					TextAlign(ui.End).Width(80).SingleLine()
+			})
+		}
+	})
+}
+
+// usageColor picks the color of one kind in the breakdown.
 func (a *App) usageColor(name string, byKind bool) ui.Color {
 	kind := name
 	if !byKind {
@@ -193,18 +267,14 @@ func (a *App) usageColor(name string, byKind bool) ui.Color {
 
 // emptyUsage invites the first scan.
 func (a *App) emptyUsage(c *ui.Context) {
-	if a.location == nil {
-		ui.Column(c).Padding(48).Center().Children(func() {
-			ui.Text(c, a.t("usage.noBucket")).FontSize(12.5).TextColor(a.pal.muted)
+	ui.Row(c).Gap(18).Padding(40, 28).Radius(12).AlignItems(ui.Center).
+		Border(1, a.pal.border).Children(func() {
+		ui.Box(c).Size(56, 56).Radius(16).Center().Shrink(0).Background(a.pal.primarySoft).Children(func() {
+			ui.Icon(c, iconPieChart).FontSize(28).TextColor(a.pal.primaryText)
 		})
-		return
-	}
-	ui.Column(c).Padding(48).Center().Children(func() {
-		ui.Column(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, iconPieChart).FontSize(28).TextColor(a.pal.faint)
-			ui.Text(c, a.t("usage.idleTitle")).FontSize(13.5).Bold()
-			ui.Text(c, a.t("usage.idleDesc")).FontSize(12).TextColor(a.pal.muted).
-				TextAlign(ui.Center)
+		ui.Column(c).Gap(4).Children(func() {
+			ui.Text(c, a.t("usage.idleTitle")).FontSize(15).FontWeight(600)
+			ui.Text(c, a.t("usage.idleDesc")).FontSize(12.5).TextColor(a.pal.muted)
 		})
 	})
 }

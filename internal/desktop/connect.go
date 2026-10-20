@@ -118,7 +118,7 @@ func (a *App) connectIntro(c *ui.Context) {
 	ui.Column(c).Gap(8).Children(func() {
 		ui.Text(c, a.t("connection.provider")).FontSize(11.5).Bold().TextColor(a.pal.faint)
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			a.connectionTile(c, 28)
+			a.providerTile(c, "r2", 28)
 			ui.Column(c).Grow(1).Children(func() {
 				ui.Text(c, a.t("connection.r2")).FontSize(13).Bold()
 				ui.Text(c, a.t("connection.r2Note")).FontSize(11.5).TextColor(a.pal.muted)

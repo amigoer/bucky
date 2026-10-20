@@ -83,6 +83,8 @@
     "uploadFiles": "Upload files…",
     "uploadFolder": "Upload folder…",
     "filtered": "(filtered)",
+    "items_one": "{{count}} item",
+    "items_other": "{{count}} items",
     "loaded": "{{count}} objects loaded",
     "loadMore": "Load more",
     "loadingMore": "Loading more…",
@@ -136,7 +138,6 @@
     "loadingDesc": "Large folders load page by page without blocking the window."
   },
   "selection": {
-    "summary": "{{count}} selected",
     "clear": "Clear selection · Esc",
     "copy": "Copy",
     "move": "Move"
@@ -372,6 +373,8 @@
     "limit": "Speed limit",
     "unlimited": "Unlimited",
     "perSecond": "MiB/s",
+    "slower": "Lower the limit",
+    "faster": "Raise the limit",
     "colName": "Name",
     "colProgress": "Progress",
     "colStatus": "Status",
@@ -423,33 +426,14 @@
   "settings": {
     "title": "Settings",
     "sections": {
-      "general": "General",
       "appearance": "Appearance",
       "transfers": "Transfers",
-      "integrations": "Integrations",
       "shortcuts": "Shortcuts",
       "about": "About"
     },
-    "descriptions": {
-      "general": "Language, browsing and storage usage.",
-      "appearance": "Choose how Bucky looks.",
-      "transfers": "Speed and concurrency for uploads and downloads.",
-      "integrations": "Use the same connections from the terminal and AI agents.",
-      "shortcuts": "Work faster with the keyboard.",
-      "about": "Version, privacy and safety."
-    },
     "language": "Language",
-    "languageDesc": "Used for menus, dialogs and messages.",
-    "view": "Folder view",
-    "viewDesc": "How folder contents are shown. Switch anytime with {{keys}}.",
-    "viewList": "List",
-    "viewIcons": "Icons",
-    "viewColumns": "Columns",
-    "usage": "Storage usage",
     "usageHint": "Scan the current bucket or prefix in the background.",
     "openUsage": "Open usage",
-    "theme": "Theme",
-    "themeDesc": "Follow the system or keep a fixed look.",
     "light": "Light",
     "dark": "Dark",
     "system": "System",
@@ -468,9 +452,6 @@
     "rateLimitHint": "Caps all transfers together. Applies to this desktop session.",
     "concurrency": "Concurrent transfers",
     "concurrencyHint": "How many uploads and downloads run at the same time.",
-    "transferNote": "Interrupted transfers keep their progress and can be resumed from the Transfers page.",
-    "openTransfers": "Open transfers",
-    "transferQueue": "Transfer queue",
     "mcpDesc": "Add this snippet to your MCP client config. MCP exposes read and plan-creation tools only; uploads, downloads, deletes, copies, moves and plan execution go back to Bucky or the CLI for your confirmation.",
     "tools": "Tools",
     "cliDesc": "The bucky CLI shares the same local core and rules as the desktop app.",
@@ -487,17 +468,10 @@
     "cloudflareDocs": "Create an OAuth client",
     "cloudflareSaved": "Cloudflare settings saved",
     "cloudflareClients": "Open the Cloudflare dashboard",
-    "shortcutGroups": {
-      "browse": "Browsing",
-      "files": "Files",
-      "app": "App"
-    },
     "tagline": "A careful desktop client for object storage.",
     "privacy": "Privacy",
     "privacyDesc": "Credentials live only in the system keychain or environment variables you choose. They’re never shown, never logged, and no telemetry is sent.",
-    "safety": "Safe changes",
     "safetyDesc": "Deletes, moves and overwrites always run from a plan you review and confirm. Read-only connections can’t change anything.",
-    "license": "License",
     "version": "Version {{version}}"
   },
   "keys": {

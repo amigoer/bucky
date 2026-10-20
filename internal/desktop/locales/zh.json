@@ -83,6 +83,8 @@
     "uploadFiles": "上传文件…",
     "uploadFolder": "上传文件夹…",
     "filtered": "（筛选中）",
+    "items_one": "{{count}} 项",
+    "items_other": "{{count}} 项",
     "loaded": "已加载 {{count}} 个对象",
     "loadMore": "加载更多",
     "loadingMore": "正在加载更多…",
@@ -136,7 +138,6 @@
     "loadingDesc": "大目录分页加载，不会阻塞界面。"
   },
   "selection": {
-    "summary": "已选 {{count}} 项",
     "clear": "取消选择 · Esc",
     "copy": "复制",
     "move": "移动"
@@ -372,6 +373,8 @@
     "limit": "限速",
     "unlimited": "不限速",
     "perSecond": "MiB/s",
+    "slower": "降低限速",
+    "faster": "提高限速",
     "colName": "名称",
     "colProgress": "进度",
     "colStatus": "状态",
@@ -423,33 +426,14 @@
   "settings": {
     "title": "设置",
     "sections": {
-      "general": "通用",
       "appearance": "外观",
       "transfers": "传输",
-      "integrations": "集成",
       "shortcuts": "快捷键",
       "about": "关于"
     },
-    "descriptions": {
-      "general": "语言、浏览方式和存储用量。",
-      "appearance": "选择 Bucky 的外观。",
-      "transfers": "上传和下载的速度与并发。",
-      "integrations": "在终端和 AI agent 中使用同一套连接。",
-      "shortcuts": "用键盘更快地操作。",
-      "about": "版本、隐私与安全。"
-    },
     "language": "语言",
-    "languageDesc": "用于菜单、对话框和提示信息。",
-    "view": "文件夹视图",
-    "viewDesc": "文件夹内容的显示方式，也可随时用 {{keys}} 切换。",
-    "viewList": "列表",
-    "viewIcons": "图标",
-    "viewColumns": "分栏",
-    "usage": "存储用量",
     "usageHint": "在后台扫描当前存储桶或前缀。",
     "openUsage": "打开用量",
-    "theme": "主题",
-    "themeDesc": "跟随系统，或固定使用一种外观。",
     "light": "浅色",
     "dark": "深色",
     "system": "跟随系统",
@@ -468,9 +452,6 @@
     "rateLimitHint": "限制所有传输的总速度，只影响当前桌面会话。",
     "concurrency": "并发传输数",
     "concurrencyHint": "同时进行的上传和下载数量。",
-    "transferNote": "中断的传输会保留进度，可在传输页继续。",
-    "openTransfers": "打开传输",
-    "transferQueue": "传输队列",
     "mcpDesc": "在 MCP 客户端配置中加入以下片段。MCP 只开放读取和创建计划的工具；上传、下载、删除、复制、移动和执行计划都要回到 Bucky 或 CLI，由你确认。",
     "tools": "可用工具",
     "cliDesc": "命令行 bucky 与桌面端共享同一套本地核心和规则。",
@@ -487,17 +468,10 @@
     "cloudflareDocs": "创建 OAuth 客户端",
     "cloudflareSaved": "Cloudflare 设置已保存",
     "cloudflareClients": "打开 Cloudflare 控制台",
-    "shortcutGroups": {
-      "browse": "浏览",
-      "files": "文件",
-      "app": "应用"
-    },
     "tagline": "谨慎可靠的对象存储桌面客户端。",
     "privacy": "隐私",
     "privacyDesc": "凭据只保存在系统钥匙串或你指定的环境变量中，不明文展示、不写日志，也不上传任何遥测。",
-    "safety": "安全变更",
     "safetyDesc": "删除、移动和覆盖都必须先生成计划，经你检查确认后才会执行；只读连接不会做任何修改。",
-    "license": "许可证",
     "version": "版本 {{version}}"
   },
   "keys": {

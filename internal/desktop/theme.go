@@ -68,6 +68,21 @@ type palette struct {
 	scrim         ui.Color
 	hud           ui.Color
 	tile          ui.Color
+	logoFrom      ui.Color
+	logoTo        ui.Color
+	primaryHover  ui.Color
+	thumb         ui.Color
+	thumbShadow   ui.Color
+	// stripe is drawn in place of the tile, not over it, so it includes it.
+	stripe       ui.Color
+	folderFill   ui.Color
+	folderStroke ui.Color
+	// button, buttonRing and buttonShadow are a secondary button's face.
+	button       ui.Color
+	buttonRing   ui.Color
+	buttonShadow ui.Color
+	// onPrimaryMuted is secondary text on the accent, as a chosen row's.
+	onPrimaryMuted ui.Color
 
 	kinds  map[string]kindPalette
 	folder ui.Color
@@ -82,24 +97,35 @@ func newPalette(dark bool, accent string) *palette {
 	primary := ui.Oklch(lightness, tone.chroma, tone.hue)
 
 	p := &palette{
-		dark:          dark,
-		primary:       primary,
-		primaryText:   ui.Oklch(0.5, tone.chroma, tone.hue),
-		primarySoft:   ui.Oklch(lightness, tone.chroma, tone.hue).Alpha(0.13),
-		primaryTint:   ui.Oklch(lightness, tone.chroma, tone.hue).Alpha(0.06),
-		primaryLine:   ui.Oklch(lightness, tone.chroma, tone.hue).Alpha(0.3),
-		onPrimary:     ui.Hex("#ffffff"),
-		destructive:   ui.Oklch(0.56, 0.2, 27),
-		destructiveBg: ui.Oklch(0.58, 0.2, 27).Alpha(0.1),
-		warning:       ui.Oklch(0.75, 0.13, 75),
-		warningText:   ui.Oklch(0.46, 0.1, 70),
-		warningBg:     ui.Oklch(0.86, 0.1, 85).Alpha(0.5),
-		success:       ui.Oklch(0.62, 0.14, 150),
-		successText:   ui.Oklch(0.46, 0.12, 150),
-		successBg:     ui.Oklch(0.62, 0.14, 150).Alpha(0.14),
-		hud:           ui.RGBA(30, 30, 32, 0.94),
-		folder:        ui.Oklch(0.8, tone.chroma*0.55, tone.hue),
-		kinds:         map[string]kindPalette{},
+		dark:           dark,
+		primary:        primary,
+		primaryText:    ui.Oklch(0.5, tone.chroma, tone.hue),
+		primarySoft:    ui.Oklch(lightness, tone.chroma, tone.hue).Alpha(0.13),
+		primaryTint:    ui.Oklch(lightness, tone.chroma, tone.hue).Alpha(0.06),
+		primaryLine:    ui.Oklch(lightness, tone.chroma, tone.hue).Alpha(0.3),
+		onPrimary:      ui.Hex("#ffffff"),
+		destructive:    ui.Oklch(0.56, 0.2, 27),
+		destructiveBg:  ui.Oklch(0.58, 0.2, 27).Alpha(0.1),
+		warning:        ui.Oklch(0.75, 0.13, 75),
+		warningText:    ui.Oklch(0.46, 0.1, 70),
+		warningBg:      ui.Oklch(0.86, 0.1, 85).Alpha(0.5),
+		success:        ui.Oklch(0.62, 0.14, 150),
+		successText:    ui.Oklch(0.46, 0.12, 150),
+		successBg:      ui.Oklch(0.62, 0.14, 150).Alpha(0.14),
+		hud:            ui.RGBA(30, 30, 32, 0.94),
+		folder:         ui.Oklch(0.8, tone.chroma*0.55, tone.hue),
+		logoFrom:       ui.Oklch(0.66, tone.chroma, tone.hue),
+		logoTo:         ui.Oklch(0.52, tone.chroma, tone.hue),
+		primaryHover:   ui.Oklch(lightness+0.04, tone.chroma, tone.hue),
+		thumb:          ui.Hex("#ffffff"),
+		thumbShadow:    ui.RGBA(0, 0, 0, 0.14),
+		folderFill:     ui.Oklch(0.86, 0.07, 70),
+		folderStroke:   ui.Oklch(0.62, 0.09, 60),
+		onPrimaryMuted: ui.RGBA(255, 255, 255, 0.82),
+		button:         ui.Hex("#ffffff"),
+		buttonRing:     ui.RGBA(0, 0, 0, 0.16),
+		buttonShadow:   ui.RGBA(0, 0, 0, 0.05),
+		kinds:          map[string]kindPalette{},
 	}
 	if dark {
 		p.background = ui.Hex("#1e1e20")
@@ -117,6 +143,14 @@ func newPalette(dark bool, accent string) *palette {
 		p.popover = ui.Hex("#2b2b2e")
 		p.scrim = ui.RGBA(0, 0, 0, 0.42)
 		p.tile = ui.RGBA(255, 255, 255, 0.05)
+		p.thumb = ui.RGBA(255, 255, 255, 0.18)
+		p.thumbShadow = ui.Transparent
+		p.stripe = ui.RGBA(255, 255, 255, 0.1)
+		p.folderFill = ui.Oklch(0.5, 0.06, 65)
+		p.folderStroke = ui.Oklch(0.72, 0.07, 65)
+		p.button = ui.RGBA(255, 255, 255, 0.1)
+		p.buttonRing = ui.RGBA(255, 255, 255, 0.14)
+		p.buttonShadow = ui.Transparent
 		p.warningBg = ui.Oklch(0.5, 0.1, 75).Alpha(0.3)
 		p.destructiveBg = ui.Oklch(0.58, 0.2, 27).Alpha(0.18)
 		// Secondary colors have to read on a dark surface, so they are
@@ -140,6 +174,7 @@ func newPalette(dark bool, accent string) *palette {
 		p.popover = ui.Hex("#ffffff")
 		p.scrim = ui.RGBA(0, 0, 0, 0.14)
 		p.tile = ui.Hex("#f1f1f3")
+		p.stripe = ui.RGBA(0, 0, 0, 0.055).Over(p.tile)
 	}
 
 	// Kind colors keep a fixed hue per kind and follow the appearance in
@@ -147,8 +182,8 @@ func newPalette(dark bool, accent string) *palette {
 	tint := func(hue, chroma float32) kindPalette {
 		if dark {
 			return kindPalette{
-				background: ui.Oklch(0.3, chroma*0.5, hue),
-				foreground: ui.Oklch(0.78, chroma, hue),
+				background: ui.Oklch(0.33, chroma*0.25, hue),
+				foreground: ui.Oklch(0.8, chroma, hue),
 			}
 		}
 		return kindPalette{
@@ -156,7 +191,7 @@ func newPalette(dark bool, accent string) *palette {
 			foreground: ui.Oklch(0.52, chroma, hue),
 		}
 	}
-	p.kinds["folder"] = tint(tone.hue, tone.chroma*0.65)
+	p.kinds["folder"] = tint(70, 0.09)
 	p.kinds["image"] = tint(42, 0.12)
 	p.kinds["video"] = tint(320, 0.12)
 	p.kinds["audio"] = tint(200, 0.12)

@@ -29,9 +29,7 @@ const (
 // row, which Context.TitleBar reports the room of.
 const (
 	titleBarHeight = 52.0
-	panelInset     = 8.0
-	panelRadius    = 16.0
-	sidebarDefault = 248.0
+	sidebarDefault = 240.0
 	sidebarMin     = 200.0
 	sidebarMax     = 360.0
 	// Left edge of the window controls on macOS, as the design places them.
@@ -40,6 +38,8 @@ const (
 	// top-left corner, so the controls start half a control above the
 	// centre of the header row.
 	trafficLightSize = 14.0
+	// Width of the three macOS window controls and the gaps between them.
+	trafficLightsWidth = 52.0
 )
 
 // Location is the folder the browser shows.
@@ -125,7 +125,6 @@ func New(ctx context.Context, backend *service.Service) (*App, error) {
 	app.browse.view = prefs.View
 	app.browse.sortKey = prefs.SortKey
 	app.browse.sortDir = prefs.SortDir
-	app.browse.sort = ui.SortOrder{Column: prefs.SortKey, Descending: prefs.SortDir < 0}
 	if app.browse.view == "" {
 		app.browse.view = viewList
 	}
@@ -153,11 +152,11 @@ func (a *App) Run() error {
 			Content:       ui.View(a.view),
 		}
 		if platformIsMac() {
-			// Centre the traffic lights on the content panel's header row
-			// rather than on the window edge, as the design places them.
+			// Centre the traffic lights on the header row, as the design
+			// places them.
 			options.TrafficLightPosition = &mygo.Point{
 				X: int(trafficLightLeft),
-				Y: int(panelInset + titleBarHeight/2 - trafficLightSize/2),
+				Y: int(titleBarHeight/2 - trafficLightSize/2),
 			}
 		} else {
 			// The system's own window buttons fill the bar at the top right,
@@ -442,7 +441,7 @@ func (a *App) content(c *ui.Context) {
 // view builds the window.
 func (a *App) view(c *ui.Context) {
 	c.SetTheme(a.pal.widgetTheme())
-	root := c.Root().Background(a.pal.sidebar)
+	c.Root().Background(a.pal.background)
 
 	bar := c.TitleBar()
 	// The header row keeps the design's height. TitleBar.Height would be
@@ -454,45 +453,46 @@ func (a *App) view(c *ui.Context) {
 		if a.sidebarOpen {
 			a.sidebar(c, top, bar)
 		}
-		panel := ui.Column(c).Grow(1).Margin(panelInset).Radius(panelRadius).
-			Background(a.pal.background).Border(1, a.pal.border)
-		panel.Children(func() {
-			ui.Column(c).Fill().Radius(panelRadius).Clip().Children(func() {
-				a.titleRow(c, top, bar)
-				ui.Column(c).Grow(1).Children(func() { a.content(c) })
-			})
+		ui.Column(c).Grow(1).Background(a.pal.background).Children(func() {
+			a.titleRow(c, top, bar)
+			ui.Column(c).Grow(1).Children(func() { a.content(c) })
 		})
 	})
 
 	// Overlays are built after the content, above it.
 	a.overlays(c)
 	a.flushToast(c)
-	_ = root
 }
 
-// titleRow draws the row the window controls share with the page heading.
-// The sidebar toggle comes first, as in the design, so the row reads the
-// same whether the sidebar is open or not.
+// titleRow draws the header of the page. With the sidebar hidden it also
+// clears the window controls and carries the toggle that brings it back.
 func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
-	lead := float32(14)
-	if !a.sidebarOpen && bar.Left > 0 {
-		// Without the sidebar the panel reaches the window edge, so this row
-		// has to clear the window controls itself.
-		lead = bar.Left + 14 - panelInset
+	lead := float32(18)
+	if a.page == pageBrowse && a.location != nil {
+		lead = 12
 	}
-	ui.Row(c).Height(height).Padding(0, bar.Right+14, 0, lead).
-		AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
-		a.sidebarToggle(c)
-		if a.pageTitleText() != "" || a.location != nil {
-			ui.Box(c).Width(1).Height(16).Background(a.pal.borderStrong)
+	row := ui.Row(c).Height(height).Padding(0, bar.Right+14, 0, lead).
+		AlignItems(ui.Center).Gap(12).DragWindow().
+		BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border)
+	row.Children(func() {
+		if !a.sidebarOpen {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				if controls := a.windowControlsWidth(bar); controls > 0 {
+					ui.Box(c).Width(controls)
+				}
+				a.sidebarToggle(c)
+			})
 		}
 		switch a.page {
 		case pageTransfers:
 			a.pageTitle(c, a.t("transfers.title"))
+			a.transfersToolbar(c)
 		case pageUsage:
 			a.pageTitle(c, a.t("usage.title"))
+			a.usageToolbar(c)
 		case pageSettings:
 			a.pageTitle(c, a.t("settings.title"))
+			ui.Spacer(c)
 		default:
 			if a.location != nil {
 				a.browserToolbar(c)
@@ -503,22 +503,73 @@ func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
 	})
 }
 
-// pageTitleText names the page when it is not the file browser.
-func (a *App) pageTitleText() string {
-	switch a.page {
-	case pageTransfers:
-		return a.t("transfers.title")
-	case pageUsage:
-		return a.t("usage.title")
-	case pageSettings:
-		return a.t("settings.title")
+// windowControlsWidth is the room the macOS window controls take from the
+// start of a header row that begins at the window edge.
+func (a *App) windowControlsWidth(bar ui.TitleBar) float32 {
+	if !platformIsMac() || bar.Left <= 0 {
+		return 0
 	}
-	return ""
+	return trafficLightsWidth
 }
 
 func (a *App) pageTitle(c *ui.Context, title string) {
-	ui.Text(c, title).FontSize(15).Bold()
-	ui.Spacer(c)
+	ui.Text(c, title).FontSize(15).FontWeight(650).SingleLine().Shrink(0)
+}
+
+// segments is a segmented control of labels with a raised thumb on the
+// chosen one. It reports a new choice.
+func (a *App) segments(c *ui.Context, index *int, label string, labels []string) bool {
+	seg := ui.SegmentedBase(c, index, len(labels))
+	seg.Track.Padding(2).Radius(8).Background(a.pal.mutedFill).Label(label).Shrink(0).Children(func() {
+		for i, text := range labels {
+			segment := seg.Segment(i).Height(24).PaddingX(10).Center().Radius(6)
+			color, weight := a.pal.muted, 500
+			if i == *index {
+				segment.Background(a.pal.thumb).Shadow(0, 1, 2, 0, a.pal.thumbShadow)
+				color, weight = a.pal.text, 600
+			}
+			segment.Children(func() {
+				ui.Text(c, text).FontSize(12).FontWeight(weight).TextColor(color).SingleLine()
+			})
+		}
+	})
+	return seg.Track.Changed()
+}
+
+// primaryAction is a page's one main action, in the accent color.
+func (a *App) primaryAction(c *ui.Context, glyph *ui.SVG, label string, disabled bool) ui.Element {
+	button := ui.Button(c, "").Label(label).Height(28).PaddingX(12).Radius(7).Disabled(disabled).
+		Border(0, ui.Transparent).Background(a.pal.primary).Shadow(0, 1, 1, 0, ui.RGBA(0, 0, 0, 0.12))
+	if disabled {
+		button.Opacity(0.45)
+	} else if button.Hovered() {
+		button.Background(a.pal.primaryHover)
+	}
+	button.Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			if glyph != nil {
+				ui.Icon(c, glyph).FontSize(14).TextColor(a.pal.onPrimary)
+			}
+			ui.Text(c, label).FontSize(12.5).FontWeight(600).TextColor(a.pal.onPrimary).SingleLine()
+		})
+	})
+	return button
+}
+
+// secondaryButton is a quiet button with a face of its own, for actions
+// beside the primary one.
+func (a *App) secondaryButton(c *ui.Context, glyph *ui.SVG, label string) ui.Element {
+	button := ui.Button(c, "").Label(label).Height(28).PaddingX(11).Radius(7).
+		Background(a.pal.button).Border(0.5, a.pal.buttonRing).Shadow(0, 1, 1, 0, a.pal.buttonShadow)
+	button.Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			if glyph != nil {
+				ui.Icon(c, glyph).FontSize(14).TextColor(a.pal.text)
+			}
+			ui.Text(c, label).FontSize(12.5).FontWeight(500).TextColor(a.pal.text).SingleLine()
+		})
+	})
+	return button
 }
 
 // sidebarToggle shows and hides the sidebar.
@@ -530,18 +581,29 @@ func (a *App) sidebarToggle(c *ui.Context) {
 	a.ghostButton(c, iconPanelLeft, label, 28, false, a.toggleSidebar)
 }
 
-// ghostButton is an icon button with no face of its own until the pointer
-// is over it, as the design's toolbar and section controls are. An active
-// button keeps a face, for the page it is on.
-func (a *App) ghostButton(c *ui.Context, glyph *ui.SVG, label string, size float32, active bool, action func()) {
-	button := ui.Button(c, "").Label(label).Tooltip(label).Size(size, size)
-	button.Background(ui.Transparent)
-	if active {
-		button.Background(a.pal.hover)
-	} else if button.Hovered() {
+// plainButton is a button with no face of its own until the pointer is
+// over it, as the design's toolbar and section controls are.
+func (a *App) plainButton(c *ui.Context, label string, width, height float32) ui.Element {
+	button := ui.Button(c, "").Label(label).Tooltip(label).Size(width, height).Radius(7).
+		Border(0, ui.Transparent).Background(ui.Transparent)
+	if button.Hovered() {
 		button.Background(a.pal.hover)
 	}
-	button.Children(func() { ui.Icon(c, glyph).FontSize(size * 0.56) })
+	return button
+}
+
+// ghostButton is an icon-only plainButton. An active button keeps a face,
+// for the page it is on.
+func (a *App) ghostButton(c *ui.Context, glyph *ui.SVG, label string, size float32, active bool, action func()) {
+	button := a.plainButton(c, label, size, size)
+	if active {
+		button.Background(a.pal.hover)
+	}
+	color := a.pal.muted
+	if active || button.Hovered() {
+		color = a.pal.text
+	}
+	button.Children(func() { ui.Icon(c, glyph).FontSize(size * 0.56).TextColor(color) })
 	if button.Clicked() {
 		action()
 	}

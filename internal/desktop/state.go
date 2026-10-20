@@ -44,11 +44,12 @@ type browseState struct {
 	cursor   string
 
 	search searchState
+	// searchOpen unfolds the toolbar's search field before anything is typed.
+	searchOpen bool
 
 	selection ui.Selection[string]
 	list      ui.ListState
 	grid      ui.GridState
-	sort      ui.SortOrder
 
 	view    string
 	sortKey string
@@ -74,6 +75,7 @@ func (b *browseState) reset(location Location) {
 	b.more = false
 	b.moreBusy = false
 	b.search = searchState{}
+	b.searchOpen = false
 	b.selection.Clear()
 	b.focus = ""
 	b.selectedIndex = -1
@@ -224,16 +226,17 @@ type transfersState struct {
 // usageState is the usage scan.
 type usageState struct {
 	scanning bool
-	usage    core.Usage
-	progress core.Usage
-	err      error
-	location *Location
-	cancel   context.CancelFunc
+	// wholeBucket scans the bucket in view rather than its folder in view.
+	wholeBucket bool
+	usage       core.Usage
+	progress    core.Usage
+	err         error
+	location    *Location
+	cancel      context.CancelFunc
 }
 
 // settingsState is the settings page.
 type settingsState struct {
-	section  int
 	settings service.Settings
 	clientID string
 	redirect string

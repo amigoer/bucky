@@ -546,9 +546,14 @@ func (a *App) reload() {
 	a.loadEntries()
 }
 
-// browserFooter reports how much is loaded and offers the next page.
+// browserFooter reports how much is loaded and offers the next page. The
+// toolbar counts a folder that is loaded whole, so it shows only for a
+// search or a folder with more to load.
 func (a *App) browserFooter(c *ui.Context) {
 	state := &a.browse
+	if !state.search.active && !state.more {
+		return
+	}
 	ui.Row(c).Height(28).PaddingX(14).Gap(8).AlignItems(ui.Center).
 		BorderWidth(1, 0, 0, 0).BorderColor(a.pal.border).Children(func() {
 		label := a.tn("browser.loaded", len(state.rows), "count", formatCount(int64(len(state.rows))))
