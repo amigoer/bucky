@@ -13,9 +13,11 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-// Keep in step with --titlebar-height in frontend/src/style.css.
+// Keep in step with --titlebar-height and --titlebar-inset in frontend/src/style.css.
 const (
-	titleBarHeight   = 52.0
+	titleBarHeight = 52.0
+	// Gap between the window edge and the content panel.
+	titleBarInset    = 8.0
 	trafficLightLeft = 18.0
 )
 
@@ -25,7 +27,7 @@ func main() {
 		log.Fatal(err)
 	}
 	desktop := application.New(application.Options{
-		Name: "Bucky", Description: "Cloudflare R2 object storage client",
+		Name: "Bucky", Description: "Object storage desktop client",
 		Services: []application.Service{application.NewServiceWithOptions(app.New(backend), application.ServiceOptions{
 			MarshalError: app.MarshalError,
 		})},
@@ -62,7 +64,9 @@ func alignTrafficLights(window *application.WebviewWindow) {
 		return
 	}
 	window.OnWindowEvent(events.Mac.WindowDidBecomeKey, func(*application.WindowEvent) {
+		// Centre the buttons on the content panel's header row, not on the
+		// window edge, so they line up with the sidebar toggle and the toolbar.
 		macwindow.SetTrafficLightPosition(
-			window.NativeWindow(), trafficLightLeft, titleBarHeight/2)
+			window.NativeWindow(), trafficLightLeft, titleBarInset+titleBarHeight/2)
 	})
 }

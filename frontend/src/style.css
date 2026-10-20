@@ -6,8 +6,12 @@
 @custom-variant drop-active (&:where(.file-drop-target-active, .file-drop-target-active *));
 
 :root {
-  /* Keep in step with titleBarHeight in cmd/bucky-desktop/main.go. */
+  /* Keep in step with titleBarHeight and titleBarInset in cmd/bucky-desktop/main.go. */
   --titlebar-height: 52px;
+  /* Gap between the window edge and the content panel. */
+  --titlebar-inset: 8px;
+  /* Left edge of the first title bar control, clear of the macOS traffic lights. */
+  --titlebar-leading: 94px;
   --radius: 8px;
 
   --background: #ffffff;

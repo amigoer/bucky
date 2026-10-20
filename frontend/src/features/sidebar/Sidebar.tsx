@@ -46,16 +46,18 @@ export function Sidebar() {
           hidden && "opacity-0",
         )}
       >
+        {/* Sits on the content header's line, and the row is tall enough that the
+            nav below starts level with the content body. */}
         <div
           className={cn(
-            "drag-region flex h-[var(--titlebar-height)] flex-none items-center gap-2 pr-2.5",
-            isMac ? "pl-[118px]" : "pl-[52px]",
+            "drag-region flex h-[calc(var(--titlebar-height)+var(--titlebar-inset))] flex-none items-center pt-[var(--titlebar-inset)]",
+            isMac ? "pl-[var(--titlebar-leading)]" : "pl-[52px]",
           )}
         >
           <Brand />
         </div>
 
-        <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pt-1.5 pb-2.5">
+        <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pb-2.5">
           <div className="flex items-center justify-between px-2 py-0.5 text-[11px] font-semibold text-faint">
             <span>{t("sidebar.connections")}</span>
             <Tip label={t("sidebar.addConnection")}>

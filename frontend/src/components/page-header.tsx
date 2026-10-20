@@ -39,10 +39,18 @@ export function PageHeader({
     <header
       className={cn(
         "drag-region relative z-10 flex h-[var(--titlebar-height)] flex-none items-center gap-1.5 border-b bg-background pr-3.5 pl-3",
-        hidden && (isMac ? "pl-[118px]" : "pl-[52px]"),
+        // With the sidebar gone the toggle clears the traffic lights and lands
+        // where the sidebar brand sits, so it does not drift across the window.
+        // The subtraction is the panel inset and its 1px border.
+        hidden &&
+          (isMac ? "pl-[calc(var(--titlebar-leading)-var(--titlebar-inset)-1px)]" : "pl-[52px]"),
         className,
       )}
     >
+      <SidebarToggle />
+      {children ? (
+        <span aria-hidden className="mx-0.5 h-4 w-px flex-none rounded-full bg-border-strong" />
+      ) : null}
       {children}
       {isMac ? null : <WindowControls />}
     </header>
