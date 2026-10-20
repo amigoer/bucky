@@ -1,8 +1,10 @@
 package desktop
 
 import (
+	"strconv"
 	"strings"
 
+	"github.com/amigoer/bucky/internal/core"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -28,7 +30,7 @@ var mcpTools = []string{
 
 // Settings sections, in the order the navigation lists them.
 var settingsSections = []string{
-	"general", "appearance", "transfers", "integrations", "shortcuts", "about",
+	"general", "connections", "transfers", "integrations", "shortcuts", "about",
 }
 
 // settingsPage draws the section navigation beside the chosen section.
@@ -53,8 +55,8 @@ func (a *App) settingsPage(c *ui.Context) {
 // settingsNav lists the sections, as the sidebar lists buckets.
 func (a *App) settingsNav(c *ui.Context) {
 	glyphs := map[string]*ui.SVG{
-		"general": iconSettings, "appearance": iconPalette, "transfers": iconArrowDownUp,
-		"integrations": iconPlug, "shortcuts": iconKeyboard, "about": iconInfo,
+		"general": iconSettings, "connections": iconPlug, "transfers": iconArrowDownUp,
+		"integrations": iconSquareTerminal, "shortcuts": iconKeyboard, "about": iconInfo,
 	}
 	ui.Column(c).Width(200).Shrink(0).Gap(2).Padding(12, 10).
 		BorderWidth(0, 1, 0, 0).BorderColor(a.pal.border).Children(func() {
@@ -88,22 +90,9 @@ func (a *App) settingsNav(c *ui.Context) {
 func (a *App) settingsSection(c *ui.Context, section string) {
 	switch section {
 	case "general":
-		a.settingsHeading(c, a.t("settings.language"))
-		a.languageChoice(c)
-		a.settingsHeading(c, a.t("usage.title"))
-		a.settingsCard(c, func() {
-			ui.Row(c).Gap(12).Padding(14, 16).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, a.t("settings.usageHint")).FontSize(12.5).TextColor(a.pal.muted).Grow(1)
-				if a.secondaryButton(c, iconPieChart, a.t("settings.openUsage")).Clicked() {
-					a.page = pageUsage
-					a.ensureUsage()
-				}
-			})
-		})
-	case "appearance":
-		a.settingsHeading(c, a.t("settings.theme"))
+		a.settingsHeading(c, a.t("settings.appearance"))
 		a.themeChoice(c)
-		a.settingsHeading(c, "")
+		ui.Box(c).Height(14)
 		a.settingsCard(c, func() {
 			a.settingsRow(c, a.t("settings.accent"), a.t("settings.accentDesc"), func() {
 				ui.Row(c).Gap(8).Children(func() {
@@ -113,11 +102,18 @@ func (a *App) settingsSection(c *ui.Context, section string) {
 				})
 			})
 		})
+		a.settingsHeading(c, a.t("settings.language"))
+		a.languageChoice(c)
+	case "connections":
+		a.settingsHeading(c, "")
+		a.connectionList(c)
+		a.settingsHeading(c, a.t("settings.cloudflare"))
+		a.cloudflareCard(c)
 	case "transfers":
 		a.settingsHeading(c, "")
 		a.settingsCard(c, func() {
 			a.settingsRow(c, a.t("settings.rateLimit"), a.t("settings.rateLimitHint"), func() {
-				a.rateStepper(c, 28)
+				a.rateControl(c, 28)
 			})
 			a.settingsDivider(c)
 			a.settingsRow(c, a.t("settings.concurrency"), a.t("settings.concurrencyHint"), func() {
@@ -125,13 +121,22 @@ func (a *App) settingsSection(c *ui.Context, section string) {
 			})
 		})
 	case "integrations":
-		a.settingsHeading(c, "CLI · MCP · Agent Skill")
-		a.agentCard(c)
-		a.settingsHeading(c, a.t("settings.cloudflare"))
-		a.cloudflareCard(c)
+		a.settingsHeading(c, "CLI")
+		a.agentCard(c, a.t("settings.cliDesc"), cliSnippet, nil)
+		a.settingsHeading(c, "MCP")
+		a.agentCard(c, a.t("settings.mcpDesc"), mcpSnippet, func() {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
+				ui.Text(c, a.t("settings.tools")).FontSize(11.5).TextColor(a.pal.muted)
+				for _, tool := range mcpTools {
+					ui.Text(c, tool).FontSize(11).Font("monospace").Height(20).PaddingX(7).Radius(5).
+						Background(a.pal.mutedFill)
+				}
+			})
+		})
+		a.settingsHeading(c, "Agent Skill")
+		a.agentCard(c, a.t("settings.skillDesc"), skillSnippet, nil)
 	case "shortcuts":
-		a.settingsHeading(c, "")
-		a.shortcutGrid(c)
+		a.shortcutGroups(c)
 	case "about":
 		a.settingsHeading(c, "")
 		a.aboutCard(c)
@@ -341,37 +346,16 @@ func (a *App) languageChoice(c *ui.Context) {
 	})
 }
 
-// agentCard shows how the CLI, MCP clients and agents reach the same core.
-func (a *App) agentCard(c *ui.Context) {
+// agentCard explains one way in and shows the snippet that sets it up.
+func (a *App) agentCard(c *ui.Context, description, code string, extra func()) {
 	a.settingsCard(c, func() {
-		a.agentSection(c, iconSquareTerminal, "MCP", a.t("settings.mcpDesc"), mcpSnippet, func() {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
-				ui.Text(c, a.t("settings.tools")).FontSize(11.5).TextColor(a.pal.muted)
-				for _, tool := range mcpTools {
-					ui.Text(c, tool).FontSize(11).Font("monospace").Height(20).PaddingX(7).Radius(5).
-						Background(a.pal.mutedFill)
-				}
-			})
+		ui.Column(c).Gap(10).Padding(14, 16).Children(func() {
+			ui.Text(c, description).FontSize(12.5).LineHeight(1.6).TextColor(a.pal.muted)
+			a.codeBlock(c, code)
+			if extra != nil {
+				extra()
+			}
 		})
-		a.settingsDivider(c)
-		a.agentSection(c, iconSquareTerminal, "CLI", a.t("settings.cliDesc"), cliSnippet, nil)
-		a.settingsDivider(c)
-		a.agentSection(c, iconFileText, "Agent Skill", a.t("settings.skillDesc"), skillSnippet, nil)
-	})
-}
-
-// agentSection is one way in, with the snippet that sets it up.
-func (a *App) agentSection(c *ui.Context, glyph *ui.SVG, title, description, code string, extra func()) {
-	ui.Column(c).Gap(8).Padding(14, 16).Children(func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, glyph).FontSize(15).TextColor(a.pal.text)
-			ui.Text(c, title).FontSize(13).FontWeight(600)
-		})
-		ui.Text(c, description).FontSize(12.5).LineHeight(1.6).TextColor(a.pal.muted)
-		a.codeBlock(c, code)
-		if extra != nil {
-			extra()
-		}
 	})
 }
 
@@ -384,6 +368,79 @@ func (a *App) codeBlock(c *ui.Context, code string) {
 			a.copyText(c, code)
 		}
 	})
+}
+
+// connectionList lists the saved connections, each with a way to edit it.
+func (a *App) connectionList(c *ui.Context) {
+	a.settingsCard(c, func() {
+		note := ""
+		switch {
+		case a.profilesErr != nil:
+			note = a.errorText(a.profilesErr)
+		case len(a.profiles) == 0:
+			note = a.t("settings.noConnections")
+		}
+		if note != "" {
+			ui.Text(c, note).FontSize(12.5).TextColor(a.pal.muted).Padding(14, 16)
+			a.settingsDivider(c)
+		}
+		for i := range a.profiles {
+			a.connectionRow(c, &a.profiles[i])
+			a.settingsDivider(c)
+		}
+		ui.Row(c).Padding(10, 16).Children(func() {
+			if a.secondaryButton(c, iconPlus, a.t("sidebar.addConnection")).Clicked() {
+				a.openConnect("")
+			}
+		})
+	})
+}
+
+// connectionRow is one saved connection: its provider, how it signs in and
+// the bucket it is limited to.
+func (a *App) connectionRow(c *ui.Context, profile *core.Profile) {
+	details := []string{a.providerName(profile.ProviderType)}
+	switch profile.CredentialSource {
+	case "cloudflare":
+		details = append(details, a.t("connection.authCloudflare"))
+	case "environment":
+		details = append(details, a.t("connection.environment"))
+	default:
+		details = append(details, a.t("connection.keychain"))
+	}
+	if profile.Bucket != "" {
+		details = append(details, profile.Bucket)
+	}
+	ui.Row(c).Gap(12).Padding(12, 16).AlignItems(ui.Center).Children(func() {
+		a.providerTile(c, profile.ProviderType, 30)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, profile.Name).FontSize(13).FontWeight(600).SingleLine().MinWidth(0)
+				if profile.ReadOnly {
+					a.sidebarBadge(c, iconLock, a.t("sidebar.readOnly"), a.pal.warningBg, a.pal.warningText)
+				}
+			})
+			ui.Text(c, strings.Join(details, " · ")).FontSize(11.5).TextColor(a.pal.muted).SingleLine()
+		})
+		if a.secondaryButton(c, nil, a.t("common.edit")).Clicked() {
+			a.openConnect(profile.ID)
+		}
+	})
+}
+
+// providerName names a storage type for people.
+func (a *App) providerName(providerType string) string {
+	if providerType == "r2" {
+		return a.t("connection.r2")
+	}
+	return strings.ToUpper(providerType)
+}
+
+// cloudflareSteps are the steps that create the OAuth client the
+// Cloudflare sign-in needs, in order.
+var cloudflareSteps = []string{
+	"settings.cloudflareStep1", "settings.cloudflareStep2", "settings.cloudflareStep3",
+	"settings.cloudflareStep4", "settings.cloudflareStep5",
 }
 
 // cloudflareCard holds the OAuth client settings the sign-in needs.
@@ -402,15 +459,25 @@ func (a *App) cloudflareCard(c *ui.Context) {
 	a.settingsCard(c, func() {
 		ui.Column(c).Gap(12).Padding(14, 16).Children(func() {
 			ui.Text(c, a.t("settings.cloudflareDesc")).FontSize(12.5).LineHeight(1.6).TextColor(a.pal.muted)
-			ui.Text(c, a.t("settings.cloudflareSetup")).FontSize(12).LineHeight(1.6).TextColor(a.pal.muted)
+			ui.Column(c).Gap(6).Children(func() {
+				for i, step := range cloudflareSteps {
+					ui.Row(c).Gap(10).AlignItems(ui.Start).Children(func() {
+						ui.Box(c).Size(18, 18).Radius(9).Center().Shrink(0).Margin(1, 0, 0, 0).
+							Background(a.pal.mutedFill).Children(func() {
+							ui.Text(c, strconv.Itoa(i+1)).FontSize(10.5).FontWeight(600).TextColor(a.pal.muted)
+						})
+						ui.Text(c, a.t(step)).FontSize(12.5).LineHeight(1.6).Grow(1).MinWidth(0)
+					})
+				}
+			})
 			field(a.t("settings.cloudflareClientId"), a.t("settings.cloudflareClientIdHint"), &a.settings.clientID)
 			field(a.t("settings.cloudflareRedirect"), a.t("settings.cloudflareRedirectHint"), &a.settings.redirect)
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				if a.primaryAction(c, nil, a.t("common.save"), false).Clicked() {
 					a.saveCloudflareSettings()
 				}
-				if a.secondaryButton(c, iconExternalLink, a.t("settings.cloudflareDocs")).Clicked() {
-					_ = mygo.Shell.OpenExternal("https://developers.cloudflare.com/fundamentals/api/get-started/create-token/")
+				if a.secondaryButton(c, iconExternalLink, a.t("settings.cloudflareClients")).Clicked() {
+					_ = mygo.Shell.OpenExternal("https://dash.cloudflare.com/")
 				}
 				if a.settings.notice != "" {
 					ui.Text(c, a.settings.notice).FontSize(12).TextColor(a.pal.successText)
@@ -462,46 +529,50 @@ func (a *App) saveCloudflareSettings() {
 	}()
 }
 
-// shortcutGrid lists the keyboard shortcuts in two columns.
-func (a *App) shortcutGrid(c *ui.Context) {
+// shortcutGroups lists the keyboard shortcuts by what they are for.
+func (a *App) shortcutGroups(c *ui.Context) {
 	mod := "Ctrl"
 	if platformIsMac() {
 		mod = "⌘"
 	}
-	shortcuts := []struct{ label, keys string }{
-		{a.t("keys.search"), mod + "F"},
-		{a.t("keys.views"), mod + "1–3"},
-		{a.t("keys.open"), "↵"},
-		{a.t("keys.history"), mod + "[ / ]"},
-		{a.t("keys.selectAll"), mod + "A"},
-		{a.t("keys.quickLook"), "Space"},
-		{a.t("keys.delete"), mod + "⌫"},
-		{a.t("keys.close"), "Esc"},
-		{a.t("keys.quickUpload"), mod + "⌥U"},
-		{a.t("keys.transfers"), mod + "⇧T"},
-		{a.t("keys.settings"), mod + ","},
-		{a.t("keys.sidebar"), mod + "⌃S"},
+	type shortcut struct{ label, keys string }
+	groups := []struct {
+		title     string
+		shortcuts []shortcut
+	}{
+		{a.t("settings.shortcutGroups.browse"), []shortcut{
+			{a.t("keys.search"), mod + "F"},
+			{a.t("keys.views"), mod + "1–3"},
+			{a.t("keys.open"), "↵"},
+			{a.t("keys.history"), mod + "[ / ]"},
+			{a.t("keys.quickLook"), "Space"},
+		}},
+		{a.t("settings.shortcutGroups.select"), []shortcut{
+			{a.t("keys.selectAll"), mod + "A"},
+			{a.t("keys.delete"), mod + "⌫"},
+			{a.t("keys.close"), "Esc"},
+		}},
+		{a.t("settings.shortcutGroups.window"), []shortcut{
+			{a.t("keys.quickUpload"), mod + "⌥U"},
+			{a.t("keys.transfers"), mod + "⇧T"},
+			{a.t("keys.settings"), mod + ","},
+			{a.t("keys.sidebar"), mod + "⌃S"},
+		}},
 	}
-	a.settingsCard(c, func() {
-		for i := 0; i < len(shortcuts); i += 2 {
-			line := ui.Row(c)
-			if i+2 < len(shortcuts) {
-				line.BorderWidth(0, 0, 1, 0).BorderColor(a.pal.border)
-			}
-			line.Children(func() {
-				for j := i; j < i+2 && j < len(shortcuts); j++ {
-					cell := ui.Row(c).Grow(1).MinWidth(0).Padding(10, 16).Gap(12).AlignItems(ui.Center)
-					if j == i {
-						cell.BorderWidth(0, 1, 0, 0).BorderColor(a.pal.border)
-					}
-					cell.Children(func() {
-						ui.Text(c, shortcuts[j].label).FontSize(12.5).SingleLine().Grow(1).MinWidth(0)
-						a.keycap(c, shortcuts[j].keys)
-					})
+	for _, group := range groups {
+		a.settingsHeading(c, group.title)
+		a.settingsCard(c, func() {
+			for i, item := range group.shortcuts {
+				if i > 0 {
+					a.settingsDivider(c)
 				}
-			})
-		}
-	})
+				ui.Row(c).Padding(10, 16).Gap(12).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, item.label).FontSize(12.5).SingleLine().Grow(1).MinWidth(0)
+					a.keycap(c, item.keys)
+				})
+			}
+		})
+	}
 }
 
 // keycap draws keys as a key on a keyboard.

@@ -5,6 +5,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -198,28 +199,56 @@ func TestSettingsView(t *testing.T) {
 	snapshot(t, "09-settings-general", app, false)
 }
 
-func TestSettingsAppearance(t *testing.T) {
+func TestSettingsConnections(t *testing.T) {
 	app := newTestApp(t)
 	app.page = pageSettings
-	app.settings.section = 1
-	snapshot(t, "10-settings-appearance", app, true)
+	withProfile(app)
+	readOnly := sampleProfile()
+	readOnly.ID, readOnly.Name, readOnly.ReadOnly = "p2", "Archive", true
+	readOnly.Bucket, readOnly.CredentialSource = "", "cloudflare"
+	app.profiles = append(app.profiles, readOnly)
+	app.buckets["p2"] = &bucketState{loaded: true, buckets: []core.Bucket{{Name: "archive"}}}
+	app.settings.loaded = true
+	app.settings.redirect = "http://127.0.0.1:8976/oauth/callback"
+	openSettingsSection(app, "connections")
+	snapshot(t, "10-settings-connections", app, true)
 }
 
 func TestSettingsIntegrations(t *testing.T) {
 	app := newTestApp(t)
 	app.page = pageSettings
 	app.settings.loaded = true
-	app.settings.section = 3
+	openSettingsSection(app, "integrations")
 	app.prefs.Language = langChinese
 	app.msg = loadMessages(langChinese)
 	snapshot(t, "11-settings-integrations", app, false)
 }
 
+func TestSettingsShortcuts(t *testing.T) {
+	app := newTestApp(t)
+	app.page = pageSettings
+	openSettingsSection(app, "shortcuts")
+	snapshot(t, "22-settings-shortcuts", app, false)
+}
+
+func TestSettingsTransfers(t *testing.T) {
+	app := newTestApp(t)
+	app.page = pageSettings
+	app.prefs.Rate = 5
+	openSettingsSection(app, "transfers")
+	snapshot(t, "23-settings-transfers", app, false)
+}
+
 func TestSettingsAbout(t *testing.T) {
 	app := newTestApp(t)
 	app.page = pageSettings
-	app.settings.section = 5
+	openSettingsSection(app, "about")
 	snapshot(t, "21-settings-about", app, false)
+}
+
+// openSettingsSection shows the named settings section.
+func openSettingsSection(app *App, name string) {
+	app.settings.section = slices.Index(settingsSections, name)
 }
 
 func TestConnectView(t *testing.T) {

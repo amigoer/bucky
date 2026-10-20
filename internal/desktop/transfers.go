@@ -85,12 +85,7 @@ func (a *App) transfersToolbar(c *ui.Context) {
 		})
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, a.t("transfers.limit")).FontSize(12).TextColor(a.pal.muted).SingleLine()
-			a.rateStepper(c, 26)
-			unit := a.t("transfers.perSecond")
-			if a.prefs.Rate == 0 {
-				unit = a.t("transfers.unlimited")
-			}
-			ui.Text(c, unit).FontSize(12).TextColor(a.pal.muted).SingleLine()
+			a.rateControl(c, 26)
 		})
 	})
 }
@@ -115,6 +110,18 @@ func (a *App) concurrencySwitch(c *ui.Context) {
 	a.prefs.Concurrency = value
 	a.savePrefs()
 	go func() { a.svc.Transfers.SetConcurrency(value) }()
+}
+
+// rateControl is the speed limit stepper with its unit.
+func (a *App) rateControl(c *ui.Context, height float32) {
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+		a.rateStepper(c, height)
+		unit := a.t("transfers.perSecond")
+		if a.prefs.Rate == 0 {
+			unit = a.t("transfers.unlimited")
+		}
+		ui.Text(c, unit).FontSize(12).TextColor(a.pal.muted).SingleLine()
+	})
 }
 
 // rateStepper steps the speed limit through rates; 0 is no limit.

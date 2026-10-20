@@ -77,7 +77,6 @@ var (
 	iconMonitor         = icon("monitor")
 	iconMoon            = icon("moon")
 	iconMusic           = icon("music")
-	iconPalette         = icon("palette")
 	iconPanelLeft       = icon("panel-left")
 	iconPause           = icon("pause")
 	iconPieChart        = icon("pie-chart")
