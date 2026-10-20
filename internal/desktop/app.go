@@ -452,8 +452,10 @@ func (a *App) view(c *ui.Context) {
 }
 
 // titleRow draws the row the window controls share with the page heading.
+// The controls sit over the sidebar on macOS and over this row elsewhere,
+// which is why only the trailing side reserves room for them.
 func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
-	ui.Row(c).Height(height).Padding(0, bar.Right+14, 0, bar.Left+14).
+	ui.Row(c).Height(height).Padding(0, bar.Right+14, 0, 14).
 		AlignItems(ui.Center).Gap(8).DragWindow().Children(func() {
 		if !a.sidebarOpen {
 			a.sidebarToggle(c)
