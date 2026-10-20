@@ -1,6 +1,6 @@
 # ADR-002：R2 首版与按类型扩展存储
 
-- 状态：已采纳
+- 状态：已采纳；v0.1 只接 R2 与类型接入顺序由 [ADR-005](0005-four-storage-types-first-release.md) 替代
 - 日期：2026-10-18
 - 相关：[ADR-001](0001-tech-stack.md)、[开发架构](../architecture.md)、[开发规划](../development-plan.md)
 
