@@ -123,6 +123,20 @@ func (a *App) connectForm(c *ui.Context) {
 		ui.Text(c, a.t("connection.r2")).FontSize(14).FontWeight(650)
 		ui.Text(c, a.t("connection.r2Note")).FontSize(11.5).TextColor(a.pal.faint).SingleLine()
 	})
+	if a.canSwitchAuth() {
+		a.formField(c, a.t("connection.authMethod"), "", a.pal.faint, func() {
+			index := 0
+			if state.profile.CredentialSource == "cloudflare" {
+				index = 1
+			}
+			labels := []string{a.t("connection.authKeys"), a.t("connection.authCloudflare")}
+			ui.Row(c).Children(func() {
+				if a.segments(c, &index, a.t("connection.authMethod"), labels) {
+					a.setAuthMethod(index == 1)
+				}
+			})
+		})
+	}
 	if state.profile.CredentialSource == "cloudflare" {
 		a.cloudflareForm(c)
 	} else {
@@ -156,18 +170,23 @@ func (a *App) connectFooter(c *ui.Context) {
 				a.askRemoveProfile()
 			}
 		}
-		if a.secondaryButton(c, nil, a.t("connection.test")).Height(30).Disabled(state.testing).Clicked() {
-			a.testConnect()
-		}
-		if state.testing {
-			ui.Spinner(c).Size(12, 12).Label(a.t("connection.testing"))
+		// A sign-in not yet saved has nothing to test or save: the form's
+		// own button connects it once a bucket is chosen.
+		signingIn := state.profile.CredentialSource == "cloudflare" && a.savedSource() != "cloudflare"
+		if !signingIn {
+			if a.secondaryButton(c, nil, a.t("connection.test")).Height(30).Disabled(state.testing).Clicked() {
+				a.testConnect()
+			}
+			if state.testing {
+				ui.Spinner(c).Size(12, 12).Label(a.t("connection.testing"))
+			}
 		}
 		ui.Spacer(c)
 		if a.secondaryButton(c, nil, a.t("common.cancel")).Height(30).Clicked() {
 			a.closeConnect()
 			return
 		}
-		if a.primaryAction(c, nil, a.t("common.save"), false).Height(30).Clicked() {
+		if !signingIn && a.primaryAction(c, nil, a.t("common.save"), false).Height(30).Clicked() {
 			a.saveConnect()
 		}
 	})
@@ -282,15 +301,45 @@ func (a *App) manualForm(c *ui.Context) {
 	})
 	a.publicURLField(c, &state.publicURL)
 	a.readOnlyToggle(c, &state.readOnly, a.t("connection.readOnly"), a.t("connection.readOnlyHint"))
-	if state.editing != "" {
-		ui.Row(c).Children(func() {
-			if a.secondaryButton(c, nil, a.t("connection.cloudflare.continue")).Clicked() {
-				state.profile.CredentialSource = "cloudflare"
-				state.profile.Bucket = state.bucket
-				a.beginCloudflareSignIn()
-			}
-		})
+}
+
+// savedSource is where the stored connection being edited keeps its
+// credentials, empty for a new one.
+func (a *App) savedSource() string {
+	if profile := a.profileOf(a.connect.editing); profile != nil {
+		return profile.CredentialSource
 	}
+	return ""
+}
+
+// canSwitchAuth reports whether the form may change how the connection
+// signs in. A saved Cloudflare connection holds a token Bucky minted, so
+// it keeps the sign-in until it is disconnected.
+func (a *App) canSwitchAuth() bool {
+	return a.savedSource() != "cloudflare"
+}
+
+// setAuthMethod switches the form between access keys and the Cloudflare
+// sign-in. Leaving the sign-in cancels its session (ADR-003).
+func (a *App) setAuthMethod(cloudflare bool) {
+	state := &a.connect
+	if cloudflare == (state.profile.CredentialSource == "cloudflare") {
+		return
+	}
+	state.err, state.notice = nil, ""
+	if cloudflare {
+		state.profile.CredentialSource = "cloudflare"
+		state.profile.Bucket = strings.TrimSpace(state.bucket)
+		return
+	}
+	if state.signInBusy || state.signIn.SessionID != "" {
+		a.cancelSignIn()
+	}
+	state.profile.CredentialSource = state.credentialSource
+	state.accounts, state.buckets = nil, nil
+	state.accountID2, state.bucket2 = "", ""
+	state.signInErr = nil
+	state.step = stepSignIn
 }
 
 // publicURLField takes the address objects are served from publicly.
@@ -388,7 +437,9 @@ func (a *App) cloudflareForm(c *ui.Context) {
 			if a.primaryAction(c, nil, a.t("connection.cloudflare.connect"), false).Clicked() {
 				a.connectCloudflare()
 			}
-			if a.secondaryButton(c, nil, a.t("connection.cloudflare.useKeys")).Clicked() {
+			// The method switch is hidden for a saved Cloudflare connection,
+			// so signing it in again offers the way back to keys here.
+			if !a.canSwitchAuth() && a.secondaryButton(c, nil, a.t("connection.cloudflare.useKeys")).Clicked() {
 				state.profile.CredentialSource = "keychain"
 				state.accounts = nil
 				state.buckets = nil

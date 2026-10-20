@@ -322,3 +322,10 @@ func TestPreviewView(t *testing.T) {
 	}
 	snapshot(t, "19-preview-text", app, false)
 }
+
+func TestConnectSignIn(t *testing.T) {
+	app := newTestApp(t)
+	app.openConnect("")
+	app.setAuthMethod(true)
+	snapshot(t, "20-connect-signin", app, false)
+}
