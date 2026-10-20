@@ -76,7 +76,7 @@ task run
 - `golangci-lint run ./cmd/... ./internal/...`：0 个问题。
 - `CGO_ENABLED=0 go build ./cmd/bucky` 与 `CGO_ENABLED=0 go build ./cmd/bucky-desktop`：通过。
 - `go tool mygo build`：产出 macOS `.app` 与 `.dmg`；其他平台的打包尚未验证。
-- 原生视图快照：18 个页面状态（欢迎页、列表 / 图标 / 分栏、只读与多选、传输、用量、设置各节、连接页、计划、分享、图床、搜索面板、确认框）在 1280×840 下渲染通过，明暗主题各覆盖一次。
+- 原生视图的无窗口渲染：18 个页面状态（欢迎页、列表 / 图标 / 分栏、只读与多选、传输、用量、设置各节、连接页、计划、分享、图床、搜索面板、确认框）在 1280×840 下渲染成 PNG，明暗主题各覆盖一次。**这组快照只覆盖页面内容**：`ui.NewTester` 没有窗口装饰，`Context.TitleBar()` 返回零，因此标题栏高度、macOS 交通灯与自绘控件的相对位置、平台窗口按钮、拖放、输入法、剪贴板与真实图片解码都不在其中。这些只能靠把应用跑起来人工走查，目前尚未进行。
 - 迁移前的前端检查（`tsc`、Biome、Vitest、Vite 构建、Wails 绑定生成）随 `frontend/` 与 `internal/app` 一同移除，不再适用。
 
 ### 3.2 协议契约（MinIO 与 RustFS）
