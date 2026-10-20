@@ -218,9 +218,21 @@ func (a *App) setQuery(query string) {
 	a.browse.search.cursor = ""
 	a.browse.search.complete = false
 	a.browse.search.err = nil
-	a.browse.search.busy = true
+	a.browse.search.dirty = true
 	a.browse.selection.Clear()
 	a.rebuildEntries()
+	a.startPendingSearch()
+}
+
+// startPendingSearch runs the search for the query typed since the last
+// scan, and does nothing while one is already running: the keystrokes of a
+// fast typist then cost one request, not one each.
+func (a *App) startPendingSearch() {
+	state := &a.browse.search
+	if !state.active || state.busy || !state.dirty {
+		return
+	}
+	state.dirty = false
 	a.runSearch("")
 }
 
@@ -244,12 +256,17 @@ func (a *App) runSearch(cursor string) {
 			if !sameLocation(a.location, location) || !a.browse.search.active {
 				return
 			}
-			if a.browse.search.query != query && strings.TrimSpace(a.browse.search.query) != query {
+			// The query may have changed while the scan ran: keep the
+			// results only when it has not.
+			if strings.TrimSpace(a.browse.search.query) != query {
+				a.browse.search.busy = false
+				a.startPendingSearch()
 				return
 			}
 			a.browse.search.busy = false
 			if err != nil {
 				a.browse.search.err = err
+				a.startPendingSearch()
 				return
 			}
 			if cursor == "" {
@@ -262,6 +279,7 @@ func (a *App) runSearch(cursor string) {
 			a.browse.search.cursor = result.NextCursor
 			a.browse.search.more = !result.Complete && result.NextCursor != ""
 			a.rebuildEntries()
+			a.startPendingSearch()
 		})
 	}()
 }
@@ -357,6 +375,7 @@ func (a *App) banner(c *ui.Context, icon *ui.SVG, text string, background, color
 
 // searchBanner reports the scope and the progress of the search.
 func (a *App) searchBanner(c *ui.Context) {
+	a.startPendingSearch()
 	place := a.prefix()
 	if place == "" {
 		place = a.location.Bucket

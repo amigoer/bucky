@@ -42,9 +42,15 @@ func (a *App) listView(c *ui.Context) {
 		}
 		a.entryMenu(c, m, state.shown[row])
 	}
+	// The table writes the layout the user drags into this copy, which
+	// rememberColumns then compares with the saved one.
+	widths := make(map[string]float32, len(a.prefs.ColumnWidths))
+	for name, width := range a.prefs.ColumnWidths {
+		widths[name] = width
+	}
 	state.list.Columns = ui.TableLayout{
-		Order:  a.prefs.ColumnOrder,
-		Widths: a.prefs.ColumnWidths,
+		Order:  append([]string{}, a.prefs.ColumnOrder...),
+		Widths: widths,
 	}
 
 	columns := []ui.TableColumn{

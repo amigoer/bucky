@@ -27,6 +27,9 @@ type searchState struct {
 	busy     bool
 	more     bool
 	err      error
+	// dirty marks a query typed while a scan was in flight, so the scan
+	// runs again for it once the current one returns.
+	dirty bool
 }
 
 // browseState is everything the file browser shows.
