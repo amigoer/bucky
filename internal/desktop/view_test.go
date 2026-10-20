@@ -195,23 +195,31 @@ func TestSettingsView(t *testing.T) {
 	app.page = pageSettings
 	withProfile(app)
 	app.settings.loaded = true
-	snapshot(t, "09-settings", app, false)
+	snapshot(t, "09-settings-general", app, false)
 }
 
-func TestSettingsDark(t *testing.T) {
+func TestSettingsAppearance(t *testing.T) {
+	app := newTestApp(t)
+	app.page = pageSettings
+	app.settings.section = 1
+	snapshot(t, "10-settings-appearance", app, true)
+}
+
+func TestSettingsIntegrations(t *testing.T) {
 	app := newTestApp(t)
 	app.page = pageSettings
 	app.settings.loaded = true
-	snapshot(t, "10-settings-dark", app, true)
-}
-
-func TestSettingsChinese(t *testing.T) {
-	app := newTestApp(t)
-	app.page = pageSettings
-	app.settings.loaded = true
+	app.settings.section = 3
 	app.prefs.Language = langChinese
 	app.msg = loadMessages(langChinese)
-	snapshot(t, "11-settings-zh", app, false)
+	snapshot(t, "11-settings-integrations", app, false)
+}
+
+func TestSettingsAbout(t *testing.T) {
+	app := newTestApp(t)
+	app.page = pageSettings
+	app.settings.section = 5
+	snapshot(t, "21-settings-about", app, false)
 }
 
 func TestConnectView(t *testing.T) {

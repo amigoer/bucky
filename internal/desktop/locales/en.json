@@ -424,10 +424,20 @@
   "settings": {
     "title": "Settings",
     "sections": {
+      "general": "General",
       "appearance": "Appearance",
       "transfers": "Transfers",
+      "integrations": "Integrations",
       "shortcuts": "Shortcuts",
       "about": "About"
+    },
+    "descriptions": {
+      "general": "Language and storage usage.",
+      "appearance": "Choose how Bucky looks.",
+      "transfers": "Speed and concurrency for uploads and downloads.",
+      "integrations": "Use the same connections from the terminal and AI agents.",
+      "shortcuts": "Work faster with the keyboard.",
+      "about": "Version, privacy and safety."
     },
     "language": "Language",
     "usageHint": "Scan the current bucket or prefix in the background.",
@@ -435,6 +445,7 @@
     "light": "Light",
     "dark": "Dark",
     "system": "System",
+    "theme": "Theme",
     "accent": "Accent color",
     "accentDesc": "Used for selection, buttons and folder icons.",
     "accents": {

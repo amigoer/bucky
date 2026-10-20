@@ -26,64 +26,132 @@ var mcpTools = []string{
 	"usage", "transfers", "get_plan", "create_plan",
 }
 
-// settingsPage draws every setting on one page, a section under another.
+// Settings sections, in the order the navigation lists them.
+var settingsSections = []string{
+	"general", "appearance", "transfers", "integrations", "shortcuts", "about",
+}
+
+// settingsPage draws the section navigation beside the chosen section.
 func (a *App) settingsPage(c *ui.Context) {
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).MaxWidth(700).Padding(0, 28, 56, 28).Children(func() {
-			a.settingsHeading(c, a.t("settings.sections.appearance"))
-			a.themeChoice(c)
-			a.settingsCard(c, func() {
-				a.settingsRow(c, a.t("settings.accent"), a.t("settings.accentDesc"), func() {
-					ui.Row(c).Gap(8).Children(func() {
-						for _, name := range accentNames {
-							a.accentSwatch(c, name)
-						}
-					})
-				})
-			}).Margin(14, 0, 0, 0)
-			a.settingsHeading(c, a.t("settings.language"))
-			a.languageChoice(c)
-			a.settingsHeading(c, a.t("settings.sections.transfers"))
-			a.settingsCard(c, func() {
-				a.settingsRow(c, a.t("settings.rateLimit"), a.t("settings.rateLimitHint"), func() {
-					a.rateStepper(c, 28)
-				})
-				a.settingsDivider(c)
-				a.settingsRow(c, a.t("settings.concurrency"), a.t("settings.concurrencyHint"), func() {
-					a.concurrencySwitch(c)
-				})
+	if a.settings.section < 0 || a.settings.section >= len(settingsSections) {
+		a.settings.section = 0
+	}
+	section := settingsSections[a.settings.section]
+	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
+		a.settingsNav(c)
+		ui.Scroll(c).Grow(1).MinWidth(0).Children(func() {
+			ui.Column(c).MaxWidth(700).Padding(24, 32, 56, 32).Children(func() {
+				ui.Text(c, a.t("settings.sections."+section)).FontSize(20).FontWeight(650)
+				ui.Text(c, a.t("settings.descriptions."+section)).FontSize(12.5).
+					TextColor(a.pal.muted).Margin(4, 0, 6, 0)
+				a.settingsSection(c, section)
 			})
-			a.settingsHeading(c, a.t("usage.title"))
-			a.settingsCard(c, func() {
-				ui.Row(c).Gap(12).Padding(14, 16).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, a.t("settings.usageHint")).FontSize(12.5).TextColor(a.pal.muted).Grow(1)
-					if a.secondaryButton(c, iconPieChart, a.t("settings.openUsage")).Clicked() {
-						a.page = pageUsage
-						a.ensureUsage()
-					}
-				})
-			})
-			a.settingsHeading(c, "CLI · MCP · Agent Skill")
-			a.agentCard(c)
-			a.settingsHeading(c, a.t("settings.cloudflare"))
-			a.cloudflareCard(c)
-			a.settingsHeading(c, a.t("settings.sections.shortcuts"))
-			a.shortcutGrid(c)
-			a.settingsHeading(c, a.t("settings.privacy"))
-			a.settingsCard(c, func() {
-				a.promiseRow(c, iconLock, a.t("settings.privacyDesc"))
-				a.settingsDivider(c)
-				a.promiseRow(c, iconShieldCheck, a.t("settings.safetyDesc"))
-			})
-			a.settingsHeading(c, a.t("settings.sections.about"))
-			a.aboutCard(c)
 		})
 	})
 }
 
-// settingsHeading names a section of the settings page.
+// settingsNav lists the sections, as the sidebar lists buckets.
+func (a *App) settingsNav(c *ui.Context) {
+	glyphs := map[string]*ui.SVG{
+		"general": iconSettings, "appearance": iconPalette, "transfers": iconArrowDownUp,
+		"integrations": iconPlug, "shortcuts": iconKeyboard, "about": iconInfo,
+	}
+	ui.Column(c).Width(200).Shrink(0).Gap(2).Padding(12, 10).
+		BorderWidth(0, 1, 0, 0).BorderColor(a.pal.border).Children(func() {
+		for i, name := range settingsSections {
+			label := a.t("settings.sections." + name)
+			active := i == a.settings.section
+			item := ui.Row(c).Height(30).PaddingX(9).Gap(9).Radius(7).AlignItems(ui.Center).
+				Cursor(ui.CursorPointer).Label(label)
+			color := a.pal.muted
+			if active {
+				item.Background(a.pal.primarySoft)
+				color = a.pal.primaryText
+			} else if item.Hovered() {
+				item.Background(a.pal.hover)
+			}
+			item.Children(func() {
+				ui.Icon(c, glyphs[name]).FontSize(15).TextColor(color)
+				text := ui.Text(c, label).FontSize(13).SingleLine()
+				if active {
+					text.FontWeight(600).TextColor(a.pal.primaryText)
+				}
+			})
+			if item.Clicked() {
+				a.settings.section = i
+			}
+		}
+	})
+}
+
+// settingsSection draws the settings of one section.
+func (a *App) settingsSection(c *ui.Context, section string) {
+	switch section {
+	case "general":
+		a.settingsHeading(c, a.t("settings.language"))
+		a.languageChoice(c)
+		a.settingsHeading(c, a.t("usage.title"))
+		a.settingsCard(c, func() {
+			ui.Row(c).Gap(12).Padding(14, 16).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, a.t("settings.usageHint")).FontSize(12.5).TextColor(a.pal.muted).Grow(1)
+				if a.secondaryButton(c, iconPieChart, a.t("settings.openUsage")).Clicked() {
+					a.page = pageUsage
+					a.ensureUsage()
+				}
+			})
+		})
+	case "appearance":
+		a.settingsHeading(c, a.t("settings.theme"))
+		a.themeChoice(c)
+		a.settingsHeading(c, "")
+		a.settingsCard(c, func() {
+			a.settingsRow(c, a.t("settings.accent"), a.t("settings.accentDesc"), func() {
+				ui.Row(c).Gap(8).Children(func() {
+					for _, name := range accentNames {
+						a.accentSwatch(c, name)
+					}
+				})
+			})
+		})
+	case "transfers":
+		a.settingsHeading(c, "")
+		a.settingsCard(c, func() {
+			a.settingsRow(c, a.t("settings.rateLimit"), a.t("settings.rateLimitHint"), func() {
+				a.rateStepper(c, 28)
+			})
+			a.settingsDivider(c)
+			a.settingsRow(c, a.t("settings.concurrency"), a.t("settings.concurrencyHint"), func() {
+				a.concurrencySwitch(c)
+			})
+		})
+	case "integrations":
+		a.settingsHeading(c, "CLI · MCP · Agent Skill")
+		a.agentCard(c)
+		a.settingsHeading(c, a.t("settings.cloudflare"))
+		a.cloudflareCard(c)
+	case "shortcuts":
+		a.settingsHeading(c, "")
+		a.shortcutGrid(c)
+	case "about":
+		a.settingsHeading(c, "")
+		a.aboutCard(c)
+		a.settingsHeading(c, a.t("settings.privacy"))
+		a.settingsCard(c, func() {
+			a.promiseRow(c, iconLock, a.t("settings.privacyDesc"))
+			a.settingsDivider(c)
+			a.promiseRow(c, iconShieldCheck, a.t("settings.safetyDesc"))
+		})
+	}
+}
+
+// settingsHeading names a group of settings. An empty title only keeps
+// the space above the group.
 func (a *App) settingsHeading(c *ui.Context, title string) {
-	ui.Text(c, title).FontSize(12).FontWeight(600).TextColor(a.pal.muted).Padding(26, 0, 10, 0)
+	if title == "" {
+		ui.Box(c).Height(16)
+		return
+	}
+	ui.Text(c, title).FontSize(12).FontWeight(600).TextColor(a.pal.muted).Padding(22, 0, 10, 0)
 }
 
 // settingsCard is a bordered group of settings.

@@ -424,10 +424,20 @@
   "settings": {
     "title": "设置",
     "sections": {
+      "general": "通用",
       "appearance": "外观",
       "transfers": "传输",
+      "integrations": "集成",
       "shortcuts": "快捷键",
       "about": "关于"
+    },
+    "descriptions": {
+      "general": "语言和存储用量。",
+      "appearance": "选择 Bucky 的外观。",
+      "transfers": "上传和下载的速度与并发。",
+      "integrations": "在终端和 AI agent 中使用同一套连接。",
+      "shortcuts": "用键盘更快地操作。",
+      "about": "版本、隐私与安全。"
     },
     "language": "语言",
     "usageHint": "在后台扫描当前存储桶或前缀。",
@@ -435,6 +445,7 @@
     "light": "浅色",
     "dark": "深色",
     "system": "跟随系统",
+    "theme": "主题",
     "accent": "强调色",
     "accentDesc": "用于选中状态、按钮和文件夹图标。",
     "accents": {

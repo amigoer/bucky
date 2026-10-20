@@ -238,6 +238,7 @@ type usageState struct {
 
 // settingsState is the settings page.
 type settingsState struct {
+	section  int
 	settings service.Settings
 	clientID string
 	redirect string
