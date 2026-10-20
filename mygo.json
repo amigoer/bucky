@@ -1,0 +1,7 @@
+{
+  "name": "Bucky",
+  "identifier": "io.amigoer.bucky",
+  "version": "0.1.0",
+  "main": "./cmd/bucky-desktop",
+  "out": "build"
+}

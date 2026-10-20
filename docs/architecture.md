@@ -1,14 +1,14 @@
 # Bucky 开发架构
 
 - 状态：已采纳，v0.1 实现进行中
-- 更新日期：2026-10-19
-- 决策依据：[ADR-002](adr/0002-r2-first-storage.md)、[ADR-003](adr/0003-cloudflare-oauth-connection.md)
+- 更新日期：2026-10-20
+- 决策依据：[ADR-002](adr/0002-r2-first-storage.md)、[ADR-003](adr/0003-cloudflare-oauth-connection.md)、[ADR-004](adr/0004-native-go-desktop-ui.md)
 - 需求与验收：[SPEC](SPEC.md)
 - 开发顺序：[开发规划](development-plan.md)
 
 ## 1. 架构目标
 
-Bucky 是本地优先的对象存储客户端。采用 Go + Wails v3 + React，一个本地核心承载桌面端、CLI 和 MCP 的业务逻辑。第一版 v0.1 只接 Cloudflare R2，先完成一个存储类型的完整体验，再逐类接入 AWS S3、阿里云 OSS 等服务。
+Bucky 是本地优先的对象存储客户端。采用 Go + MyGo 原生界面，一个本地核心承载桌面端、CLI 和 MCP 的业务逻辑。第一版 v0.1 只接 Cloudflare R2，先完成一个存储类型的完整体验，再逐类接入 AWS S3、阿里云 OSS 等服务。
 
 架构保持简单：单一 Go module、进程内函数调用、SQLite 持久化、系统钥匙串保存凭证。不引入远程业务服务器、微服务、消息队列、运行时插件或依赖注入框架；不为尚未接入的厂商建立空实现。
 
@@ -17,7 +17,7 @@ Bucky 是本地优先的对象存储客户端。采用 Go + Wails v3 + React，�
 ## 2. 四层结构
 
 ```text
-React desktop UI / bucky CLI / MCP tools
+MyGo native desktop UI / bucky CLI / MCP tools
                     |
             Entry adapters
                     |
@@ -35,14 +35,14 @@ Credentials are resolved through the system keychain.
 
 | 层 | 职责 | 不承担的内容 |
 | --- | --- | --- |
-| 入口 | React 交互；Wails 参数和事件转换；CLI 参数和 JSON；MCP 工具输入输出 | 存储操作规则、凭证持久化、上传调度 |
-| `service` | 连接测试、浏览、预览、分享、操作计划、只读限制，组合传输和本地数据 | 云 SDK 的具体调用、Wails 类型 |
+| 入口 | MyGo 原生视图与事件；CLI 参数和 JSON；MCP 工具输入输出 | 存储操作规则、凭证持久化、上传调度 |
+| `service` | 连接测试、浏览、预览、分享、操作计划、只读限制，组合传输和本地数据 | 云 SDK 的具体调用、桌面框架类型 |
 | `core` | 连接和对象模型、存储接口、能力、统一错误 | SDK、数据库、桌面运行时 |
 | `drivers` | 将统一操作翻译为对应云 API，处理 endpoint、签名、分页和兼容差异 | 界面交互、业务确认、全局任务队列 |
 
 `cmd` 负责显式创建依赖并传给各入口。`service` 使用 `core` 接口，由组合入口注入具体驱动；`core` 不反向引用 `service`、`drivers` 或基础设施。
 
-只有桌面入口和 `internal/app` 可以依赖 Wails。React 只调用生成的绑定，不直接请求云 API，也不保存存储密钥。SDK 返回值在驱动内转换，不能直接成为前端、CLI 或 MCP 的数据结构。
+只有桌面入口 `cmd/bucky-desktop` 和 `internal/desktop` 可以依赖 MyGo。视图直接调用 `service` 的方法，不经过绑定或 IPC，也不保存存储密钥；长任务在 goroutine 中执行，结果经 `Window.Update` 回到主线程。SDK 返回值在驱动内转换，不能直接成为界面、CLI 或 MCP 的数据结构。
 
 ## 3. 目录与模块
 
@@ -62,23 +62,21 @@ bucky/
 │   ├── profile/          # Connection configuration and keychain access
 │   ├── transfer/         # Queue, streaming and resumable transfers
 │   ├── store/            # SQLite schema, migrations and repositories
-│   ├── app/              # Wails bindings and event conversion
-│   ├── macwindow/        # Native macOS window chrome helpers
+│   ├── desktop/          # MyGo native UI: views, state and locale catalogs
+│   │   ├── icons/        # Lucide SVG icons
+│   │   ├── locales/      # English and Chinese string catalogs
+│   │   └── assets/       # Application mark
 │   └── agent/            # MCP transport and Skill installation
-├── frontend/
-│   └── src/
-│       ├── features/     # Connections, browser, transfers and settings
-│       ├── components/   # Shared UI components
-│       └── lib/          # Bindings wrapper, query setup and i18n
-├── build/                # Platform build resources and tasks
+├── resources/            # Application icon for mygo build
 ├── test/integration/     # Local backends and opt-in cloud tests
 ├── docs/
+├── mygo.json             # Application name, identifier and version
 └── Taskfile.yml
 ```
 
 R2 图床、分享和用量先作为 `service` 内的具体用例，出现可复用的独立职责后再拆包。OSS 接入时新增 `drivers/oss/`；COS、Kodo 和非 S3 协议适配器到对应版本再创建。
 
-Wails 的入口路径和绑定生成在 Phase 0 验证；如果模板只能在根目录稳定工作，按 ADR-001 调整桌面入口位置，其余分层不变。
+桌面入口保持在 `cmd/bucky-desktop`：MyGo 不要求 `main` 包位于仓库根目录，`mygo.json` 里的配置足以让 `go tool mygo dev` 与 `go tool mygo build` 正常工作。
 
 ## 4. 按存储类型接入
 

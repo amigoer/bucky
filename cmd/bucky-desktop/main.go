@@ -1,72 +1,74 @@
+// Command bucky-desktop is the Bucky desktop application. Its window is
+// drawn by MyGo's native UI toolkit, so it starts no webview and needs no
+// frontend build.
 package main
 
 import (
 	"context"
 	"log"
-	"runtime"
 
-	"github.com/amigoer/bucky/frontend"
-	"github.com/amigoer/bucky/internal/app"
-	"github.com/amigoer/bucky/internal/macwindow"
+	"github.com/amigoer/bucky/internal/desktop"
 	"github.com/amigoer/bucky/internal/service"
-	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/wailsapp/wails/v3/pkg/events"
-)
-
-// Keep in step with --titlebar-height and --titlebar-inset in frontend/src/style.css.
-const (
-	titleBarHeight = 52.0
-	// Gap between the window edge and the content panel.
-	titleBarInset    = 8.0
-	trafficLightLeft = 18.0
+	"github.com/egoist/mygo"
 )
 
 func main() {
-	backend, err := service.New(context.Background(), service.Options{})
+	ctx := context.Background()
+	backend, err := service.New(ctx, service.Options{})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Bucky cannot start: %v", err)
 	}
-	desktop := application.New(application.Options{
-		Name: "Bucky", Description: "Object storage desktop client",
-		Services: []application.Service{application.NewServiceWithOptions(app.New(backend), application.ServiceOptions{
-			MarshalError: app.MarshalError,
-		})},
-		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(frontend.Assets)},
-		Mac:    application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
-	})
-	window := desktop.Window.NewWithOptions(newWindowOptions())
-	alignTrafficLights(window)
-	window.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
-		desktop.Event.Emit("files:dropped", event.Context().DroppedFiles())
-	})
-	if err := desktop.Run(); err != nil {
+	app, err := desktop.New(ctx, backend)
+	if err != nil {
 		_ = backend.Close()
-		log.Fatal("Desktop application failed to start")
+		log.Fatalf("Bucky cannot start: %v", err)
+	}
+	mygo.App.SetName("Bucky")
+	mygo.App.SetVersion(desktop.Version)
+	mygo.App.SetMenu(appMenu())
+	mygo.App.OnQuit(app.Close)
+	if err := app.Run(); err != nil {
+		app.Close()
+		log.Fatalf("Bucky stopped: %v", err)
 	}
 }
 
-func newWindowOptions() application.WebviewWindowOptions {
-	return application.WebviewWindowOptions{
-		Title: "Bucky", Width: 1280, Height: 840, MinWidth: 960, MinHeight: 640,
-		URL: "/", EnableFileDrop: true,
-		// macOS keeps the native frame so its traffic lights stay available;
-		// the renderer draws the rest of the title bar on every platform.
-		Frameless:        runtime.GOOS != "darwin",
-		BackgroundColour: application.NewRGB(255, 255, 255),
-		Mac: application.MacWindow{
-			TitleBar: application.MacTitleBarHidden,
+// appMenu is the menu bar: the application menu, the editing commands text
+// fields use, and the window commands.
+func appMenu() *mygo.Menu {
+	return mygo.NewMenu([]*mygo.MenuItem{
+		{
+			Label: "Bucky",
+			Submenu: []*mygo.MenuItem{
+				{Role: mygo.RoleAbout},
+				mygo.Separator(),
+				{Role: mygo.RoleHide},
+				{Role: mygo.RoleHideOthers},
+				{Role: mygo.RoleUnhide},
+				mygo.Separator(),
+				{Role: mygo.RoleQuit},
+			},
 		},
-	}
-}
-
-func alignTrafficLights(window *application.WebviewWindow) {
-	if runtime.GOOS != "darwin" {
-		return
-	}
-	window.OnWindowEvent(events.Mac.WindowDidBecomeKey, func(*application.WindowEvent) {
-		// Centre the buttons on the content panel's header row, not on the
-		// window edge, so they line up with the sidebar toggle and the toolbar.
-		macwindow.SetTrafficLightPosition(
-			window.NativeWindow(), trafficLightLeft, titleBarInset+titleBarHeight/2)
+		{
+			Label: "Edit",
+			Submenu: []*mygo.MenuItem{
+				{Role: mygo.RoleUndo},
+				{Role: mygo.RoleRedo},
+				mygo.Separator(),
+				{Role: mygo.RoleCut},
+				{Role: mygo.RoleCopy},
+				{Role: mygo.RolePaste},
+				{Role: mygo.RoleSelectAll},
+			},
+		},
+		{
+			Label: "Window",
+			Submenu: []*mygo.MenuItem{
+				{Role: mygo.RoleMinimize},
+				{Role: mygo.RoleZoom},
+				mygo.Separator(),
+				{Role: mygo.RoleClose},
+			},
+		},
 	})
 }

@@ -1,11 +1,11 @@
 # Bucky UI 设计稿
 
-- 更新日期：2026-10-18
-- 状态：已实现（`frontend/` 为产品实现，本目录保留设计原型与说明）
+- 更新日期：2026-10-20
+- 状态：设计基线（产品实现为 `internal/desktop` 的 MyGo 原生界面，本目录只保留设计原型与说明）
 - 入口：[design/index.html](index.html)
-- 设计基线：shadcn/ui、Tailwind CSS v4、lucide-react、Wails 自绘 52 px 标题栏
+- 设计基线：暖中性底色、单一强调色、52 px 标题栏、8 px 内容面板内缩
 
-本目录只包含设计与原型，不参与产品构建。页面中的连接、对象、传输、计划 ID 和密钥均为演示数据，`bucky-placeholder-secret` 不是真实凭证。产品实现已经落在 `frontend/`，与本文的差异记录在最后一节。
+本目录只包含设计与原型，不参与产品构建，其中的 HTML/CSS/JS 也不再是产品代码。页面中的连接、对象、传输、计划 ID 和密钥均为演示数据，`bucky-placeholder-secret` 不是真实凭证。桌面端已按 [ADR-004](../docs/adr/0004-native-go-desktop-ui.md) 改为 MyGo 纯 Go 原生界面，颜色令牌、间距与文案仍以此目录为准；原 `frontend/` 实现已删除。
 
 ## 1. 使用方式
 

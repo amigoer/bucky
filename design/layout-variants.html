@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Bucky · 窗口布局圆角方案对比</title>
+<style>
+  :root{
+    --background:#ffffff; --sidebar:#f4f4f6; --fg:#1d1d1f; --muted:#6e6e73; --faint:#a1a1a6;
+    --border:rgb(0 0 0 / .07); --border-strong:rgb(0 0 0 / .12);
+    --primary:oklch(.56 .165 255); --primary-soft:oklch(.56 .165 255 / .13); --primary-text:oklch(.5 .165 255);
+    --sh-panel:0 1px 2px rgb(0 0 0 / .04), 0 4px 14px rgb(0 0 0 / .05);
+    --sh-card:0 0 0 .5px rgb(0 0 0 / .12), 0 1px 2px rgb(0 0 0 / .05);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px 20px 40px;background:#e2e2e6;color:var(--fg);
+    font:13px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+  h1{font-size:17px;margin:0 0 4px;font-weight:650}
+  .sub{font-size:12px;color:#63636a;margin:0 0 20px;max-width:700px}
+  .grid{display:flex;flex-direction:column;gap:18px;max-width:700px}
+  .card{background:#fff;border-radius:12px;padding:13px 13px 15px;box-shadow:0 1px 3px rgb(0 0 0 / .08)}
+  .label{display:flex;align-items:center;gap:9px;margin-bottom:3px}
+  .tag{font-weight:650;font-size:14px}
+  .tag em{font-style:normal;color:var(--primary-text)}
+  .pick{font-size:10.5px;font-weight:650;color:var(--primary-text);background:var(--primary-soft);
+    border-radius:99px;padding:2px 8px}
+  .note{font-size:11.5px;color:#75757c;margin:0 0 10px}
+  .pros{display:flex;gap:18px;margin:10px 0 0;font-size:11.5px;color:#5f5f66}
+  .pros div{flex:1}
+  .pros b{display:block;font-size:10px;color:#8a8a90;font-weight:650;letter-spacing:.05em;margin-bottom:2px}
+
+  /* window material: the 8px frame that shows around floating panels */
+  .win{position:relative;height:280px;border-radius:11px;overflow:hidden;
+    background:#e2e2e6;box-shadow:inset 0 0 0 1px rgb(0 0 0 / .14)}
+  .side{position:absolute;top:0;left:0;bottom:0;width:190px;background:var(--sidebar);
+    display:flex;flex-direction:column;padding:0 10px}
+  .sidehead{display:flex;align-items:center;height:38px;flex:none;margin:0 -10px;padding:0 10px;gap:8px}
+  .dots{display:flex;gap:8px;flex:none}
+  .dots i{width:11px;height:11px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgb(0 0 0 / .14)}
+  .dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+  .tl-toggle{width:20px;height:20px;border-radius:5px;background:rgb(0 0 0 / .05);
+    display:grid;place-items:center;flex:none}
+  .tl-toggle::before{content:"";width:10px;height:8px;border:1.5px solid #86868b;border-radius:2px}
+  .brand{display:flex;align-items:center;gap:5px;font-weight:700;font-size:12.5px;margin-left:2px}
+  .brand b{width:18px;height:18px;border-radius:5px;background:#f0703c;color:#fff;
+    font:700 9px/18px -apple-system;text-align:center}
+  .sidebody{display:flex;flex-direction:column;gap:5px;flex:1;min-height:0}
+  .sh{display:flex;justify-content:space-between;align-items:center;
+    font-size:9.5px;font-weight:700;letter-spacing:.06em;color:var(--faint);padding:3px 5px}
+  .row{display:flex;align-items:center;gap:6px;height:24px;border-radius:6px;padding:0 6px;font-size:11.5px}
+  .row i{width:15px;height:15px;border-radius:5px;background:#f0703c;color:#fff;
+    font:700 7px/15px -apple-system;text-align:center;flex:none}
+  .row.b{color:#6e6e73;padding-left:14px}
+  .row.b i{background:none;border:1.5px solid #c9c9ce;border-radius:3px}
+  .row.on{background:var(--primary-soft);color:var(--primary-text);font-weight:600}
+  .fill{flex:1}
+  .tray{height:40px;border-radius:9px;background:#fff;box-shadow:var(--sh-card);
+    display:flex;align-items:center;gap:7px;padding:0 9px;font-size:10px;color:#6e6e73}
+  .tray b{display:block;font-size:11.5px;color:var(--fg)}
+  .acts{display:flex;gap:6px;height:28px;margin-bottom:9px}
+  .pill{flex:1;border-radius:8px;background:var(--primary-soft);color:var(--primary-text);
+    font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:5px;padding:0 8px}
+  .ib{width:28px;border-radius:8px;background:rgb(0 0 0 / .05)}
+  .main{position:absolute;background:var(--background);display:flex;flex-direction:column}
+  .mhead{height:38px;flex:none;display:flex;align-items:center;gap:6px;padding:0 9px;
+    border-bottom:1px solid var(--border);font-size:12px;font-weight:600}
+  .mhead .sp{flex:1}
+  .mhead .btn{height:20px;border-radius:5px;background:rgb(0 0 0 / .05);width:28px}
+  .mhead .up{width:50px;background:var(--primary)}
+  .mbody{flex:1;display:flex;flex-direction:column;gap:8px;padding:12px 9px;overflow:hidden}
+  .ln{height:10px;border-radius:4px;background:rgb(0 0 0 / .055)}
+  .ln.s{width:38%}.ln.m{width:62%}
+
+  /* A: content panel floats, sidebar is the window base */
+  .A .main{top:8px;left:198px;right:8px;bottom:8px;border-radius:16px;border:1px solid var(--border);box-shadow:var(--sh-panel)}
+  /* B: sidebar panel floats, content is the window base */
+  .B .side{top:8px;left:8px;bottom:8px;border-radius:16px;box-shadow:var(--sh-panel)}
+  .B .main{top:0;left:206px;right:0;bottom:0}
+  /* C: both panels float */
+  .C .side{top:8px;left:8px;bottom:8px;border-radius:16px;box-shadow:var(--sh-panel)}
+  .C .main{top:8px;left:206px;right:8px;bottom:8px;border-radius:16px;border:1px solid var(--border);box-shadow:var(--sh-panel)}
+  /* D: neither floats */
+  .D .main{top:0;left:190px;right:0;bottom:0;border-left:1px solid var(--border)}
+
+  /* seam markers: where the two header baselines stop lining up */
+  .seam{position:absolute;z-index:9;background:#ff3b30;opacity:.9}
+</style>
+</head>
+<body>
+<h1>圆角放在哪一侧</h1>
+<p class="sub">同一套 token、同样的侧栏宽度与内容结构。红绿灯、侧栏切换按钮和品牌都在侧栏的 52px 头部里，所以侧栏顶边在哪，这一组元素就在哪。红色标记是两条头部基线断开的位置。</p>
+<div class="grid">
+
+  <div class="card">
+    <div class="label"><span class="tag"><em>A</em> 内容区浮起</span><span class="pick">现状</span></div>
+    <p class="note">侧栏铺满窗口当底，内容区内缩 8px + 圆角 + 边框 + 阴影。</p>
+    <div class="win A">
+      <div class="side">
+        <div class="sidehead"><div class="dots"><i></i><i></i><i></i></div><div class="tl-toggle"></div><div class="brand"><b>B</b>Bucky</div></div>
+        <div class="sidebody">
+          <div class="sh"><span>连接</span><span>+</span></div>
+          <div class="row"><i>R2</i>Acme assets</div>
+          <div class="row b"><i></i>media</div>
+          <div class="row b on"><i></i>assets</div>
+          <div class="fill"></div>
+          <div class="tray"><span><b>传输已完成</b>没有进行中的任务</span></div>
+          <div class="acts"><span class="pill">⚡ 图床上传</span><span class="ib"></span><span class="ib"></span></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="mhead">‹ › ☁ assets<span class="sp"></span><span class="btn"></span><span class="btn up"></span></div>
+        <div class="mbody"><div class="ln m"></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div><div class="ln m"></div><div class="ln s"></div></div>
+      </div>
+      <span class="seam" style="left:0;top:38px;width:190px;height:1px"></span>
+    </div>
+    <div class="pros">
+      <div><b>好处</b>内容像一张纸，滚动内容与窗口边缘分离；侧栏读起来是底座，不抢注意力。</div>
+      <div><b>代价</b>侧栏头部下沿在 52px、内容头部下沿在 60px，横向分隔线错开 8px；窗口里还嵌着一个窗口。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label"><span class="tag"><em>B</em> 侧栏浮起</span></div>
+    <p class="note">侧栏内缩 + 圆角，内容区铺满到窗口边缘。</p>
+    <div class="win B">
+      <div class="side">
+        <div class="sidehead"><div class="dots"><i></i><i></i><i></i></div><div class="tl-toggle"></div><div class="brand"><b>B</b>Bucky</div></div>
+        <div class="sidebody">
+          <div class="sh"><span>连接</span><span>+</span></div>
+          <div class="row"><i>R2</i>Acme assets</div>
+          <div class="row b"><i></i>media</div>
+          <div class="row b on"><i></i>assets</div>
+          <div class="fill"></div>
+          <div class="tray"><span><b>传输已完成</b>没有进行中的任务</span></div>
+          <div class="acts"><span class="pill">⚡ 图床上传</span><span class="ib"></span><span class="ib"></span></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="mhead">‹ › ☁ assets<span class="sp"></span><span class="btn"></span><span class="btn up"></span></div>
+        <div class="mbody"><div class="ln m"></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div><div class="ln m"></div><div class="ln s"></div></div>
+      </div>
+      <span class="seam" style="left:198px;top:38px;width:2px;height:8px"></span>
+    </div>
+    <div class="pros">
+      <div><b>好处</b>内容区拿到全部宽度，表格和滚动条能贴边。</div>
+      <div><b>代价</b>次要的导航拿了「卡片」待遇，主次颠倒；侧栏头部反而比内容头部低 8px。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label"><span class="tag"><em>C</em> 两块都浮起</span></div>
+    <p class="note">侧栏与内容各自圆角、中间留缝，窗口底色只在四周露出一圈 8px 的框。</p>
+    <div class="win C">
+      <div class="side">
+        <div class="sidehead"><div class="dots"><i></i><i></i><i></i></div><div class="tl-toggle"></div><div class="brand"><b>B</b>Bucky</div></div>
+        <div class="sidebody">
+          <div class="sh"><span>连接</span><span>+</span></div>
+          <div class="row"><i>R2</i>Acme assets</div>
+          <div class="row b"><i></i>media</div>
+          <div class="row b on"><i></i>assets</div>
+          <div class="fill"></div>
+          <div class="tray"><span><b>传输已完成</b>没有进行中的任务</span></div>
+          <div class="acts"><span class="pill">⚡ 图床上传</span><span class="ib"></span><span class="ib"></span></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="mhead">‹ › ☁ assets<span class="sp"></span><span class="btn"></span><span class="btn up"></span></div>
+        <div class="mbody"><div class="ln m"></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div><div class="ln m"></div><div class="ln s"></div></div>
+      </div>
+    </div>
+    <div class="pros">
+      <div><b>好处</b>两块面板顶边、头部下沿都在同一条线上；红绿灯和品牌落在侧栏卡片里，四周的 8px 框变成有意的留白。</div>
+      <div><b>代价</b>左右各让 8px，内容宽度少 16px；侧栏折叠动画要改成面板宽度动画。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label"><span class="tag"><em>D</em> 都不浮起</span></div>
+    <p class="note">侧栏与内容平铺，中间 1px 分隔线。design/README 最初写下的设计基线。</p>
+    <div class="win D">
+      <div class="side">
+        <div class="sidehead"><div class="dots"><i></i><i></i><i></i></div><div class="tl-toggle"></div><div class="brand"><b>B</b>Bucky</div></div>
+        <div class="sidebody">
+          <div class="sh"><span>连接</span><span>+</span></div>
+          <div class="row"><i>R2</i>Acme assets</div>
+          <div class="row b"><i></i>media</div>
+          <div class="row b on"><i></i>assets</div>
+          <div class="fill"></div>
+          <div class="tray"><span><b>传输已完成</b>没有进行中的任务</span></div>
+          <div class="acts"><span class="pill">⚡ 图床上传</span><span class="ib"></span><span class="ib"></span></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="mhead">‹ › ☁ assets<span class="sp"></span><span class="btn"></span><span class="btn up"></span></div>
+        <div class="mbody"><div class="ln m"></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div><div class="ln m"></div><div class="ln s"></div></div>
+      </div>
+    </div>
+    <div class="pros">
+      <div><b>好处</b>最省空间，最接近 Finder 这类原生工具；没有任何对齐断点要处理。</div>
+      <div><b>代价</b>失去浮起的层次感，与已经落地的 shadow-panel、圆角卡片方向相反。</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

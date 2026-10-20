@@ -1,18 +1,19 @@
 # 测试与验证记录
 
-- 更新日期：2026-10-19
+- 更新日期：2026-10-20
 - 状态：v0.1 实现进行中
 - 适用代码：`main` 分支当前提交
 
 本文区分三类结果：已在本机通过的自动检查、已在容器后端通过的协议测试，以及尚未验证的真实环境行为。没有真实凭据或目标平台时，不把本地结果当作真实 R2 或三平台结论。
+
+> **范围说明（2026-10-20）**：桌面端已按 [ADR-004](adr/0004-native-go-desktop-ui.md) 从 Wails + React 迁移到 MyGo 纯 Go 原生界面。第 2 节和第 3.1 节已更新为当前命令与结果；第 5 节及以后记录的是迁移前 Wails 构建上的历史验证，其中的 WebView、前端构建与窗口细节不再适用于当前代码，但存储协议、连接与计划相关的结论仍然有效。原生界面的三平台人工走查尚未进行。
 
 ## 1. 测试环境
 
 | 项目 | 版本或说明 |
 | --- | --- |
 | Go | 1.27.2 |
-| Node.js | 24.22.0 |
-| pnpm | 12.14.0 |
+| MyGo | `v0.5.6-0.20261020115920-163d50e2acc1`（伪版本） |
 | Docker | OrbStack 29.4.0，仅用于本机集成测试 |
 | 操作系统 | macOS（Darwin 27.0.0） |
 
@@ -33,13 +34,10 @@ go vet ./...
 golangci-lint run ./...
 ```
 
-前端检查与生产构建：
+原生界面的无窗口渲染（设置 `BUCKY_SNAPSHOT_DIR` 时把每一页写成 PNG）：
 
 ```bash
-pnpm --dir frontend typecheck
-pnpm --dir frontend lint
-pnpm --dir frontend test
-pnpm --dir frontend build
+BUCKY_SNAPSHOT_DIR=/tmp/bucky-shots go test -run Test ./internal/desktop/
 ```
 
 需要 Docker 的协议与端到端测试：
@@ -61,26 +59,25 @@ go test -tags integration -run 'TestServiceWorkflows/rustfs' -v ./test/integrati
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -o bin/bucky ./cmd/bucky
 ```
 
-桌面构建与本地运行：
+桌面开发运行、打包与单次运行：
 
 ```bash
-task build:desktop
+go tool mygo dev
+go tool mygo build
 task run
 ```
 
 ## 3. 已通过的本地检查
 
-### 3.1 Go 与前端
+### 3.1 Go 与原生界面
 
-- `go test -race ./internal/... ./cmd/...`：通过。当前单元测试覆盖 SQLite 存储、传输本地路径安全与目标文件检查、Cloudflare REST/OAuth 驱动和服务层登录流程。
+- `go test -race ./internal/... ./cmd/...`：通过。当前单元测试覆盖 SQLite 存储、传输本地路径安全与目标文件检查、Cloudflare REST/OAuth 驱动、服务层登录流程，以及原生视图的无窗口渲染。
 - `go vet ./...`：通过。
-- `golangci-lint run ./...`：0 个问题。
-- `tsc -b`：通过。
-- Biome：退出码 0，无告警；CSS 解析启用 Tailwind 指令。
-- Vitest：5 个测试文件、30 个测试通过（格式化、列表语义、计划结果、快速上传模板、Cloudflare 登录状态机与会话取消/重试）。
-- Vite 生产构建：通过。输出单个 JS chunk，约 813 kB（gzip 约 245 kB），CSS 约 61 kB（gzip 约 11.5 kB）。
-- `CGO_ENABLED=0 go build ./cmd/bucky`：通过。
-- Wails 绑定生成：1 个服务、41 个方法、28 个模型、4 个事件。
+- `golangci-lint run ./cmd/... ./internal/...`：0 个问题。
+- `CGO_ENABLED=0 go build ./cmd/bucky` 与 `CGO_ENABLED=0 go build ./cmd/bucky-desktop`：通过。
+- `go tool mygo build`：产出 macOS `.app` 与 `.dmg`；其他平台的打包尚未验证。
+- 原生视图快照：18 个页面状态（欢迎页、列表 / 图标 / 分栏、只读与多选、传输、用量、设置各节、连接页、计划、分享、图床、搜索面板、确认框）在 1280×840 下渲染通过，明暗主题各覆盖一次。
+- 迁移前的前端检查（`tsc`、Biome、Vitest、Vite 构建、Wails 绑定生成）随 `frontend/` 与 `internal/app` 一同移除，不再适用。
 
 ### 3.2 协议契约（MinIO 与 RustFS）
 
