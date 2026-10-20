@@ -141,8 +141,7 @@ func (a *App) rateStepper(c *ui.Context, height float32) {
 
 // stepButton is one end of a stepper.
 func (a *App) stepButton(c *ui.Context, glyph, label string, height float32, disabled bool) bool {
-	button := ui.Button(c, "").Label(label).Tooltip(label).Size(height, height).Radius(0).
-		Border(0, ui.Transparent).Background(ui.Transparent).Disabled(disabled)
+	button := ui.ButtonBase(c).Label(label).Tooltip(label).Size(height, height).Disabled(disabled)
 	color := a.pal.muted
 	if disabled {
 		color = a.pal.faint

@@ -538,8 +538,8 @@ func (a *App) segments(c *ui.Context, index *int, label string, labels []string)
 
 // primaryAction is a page's one main action, in the accent color.
 func (a *App) primaryAction(c *ui.Context, glyph *ui.SVG, label string, disabled bool) ui.Element {
-	button := ui.Button(c, "").Label(label).Height(28).PaddingX(12).Radius(7).Disabled(disabled).
-		Border(0, ui.Transparent).Background(a.pal.primary).Shadow(0, 1, 1, 0, ui.RGBA(0, 0, 0, 0.12))
+	button := ui.ButtonBase(c).Label(label).Height(28).PaddingX(12).Radius(7).Disabled(disabled).
+		Background(a.pal.primary).Shadow(0, 1, 1, 0, ui.RGBA(0, 0, 0, 0.12))
 	if disabled {
 		button.Opacity(0.45)
 	} else if button.Hovered() {
@@ -559,7 +559,7 @@ func (a *App) primaryAction(c *ui.Context, glyph *ui.SVG, label string, disabled
 // secondaryButton is a quiet button with a face of its own, for actions
 // beside the primary one.
 func (a *App) secondaryButton(c *ui.Context, glyph *ui.SVG, label string) ui.Element {
-	button := ui.Button(c, "").Label(label).Height(28).PaddingX(11).Radius(7).
+	button := ui.ButtonBase(c).Label(label).Height(28).PaddingX(11).Radius(7).
 		Background(a.pal.button).Border(0.5, a.pal.buttonRing).Shadow(0, 1, 1, 0, a.pal.buttonShadow)
 	button.Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
@@ -582,10 +582,13 @@ func (a *App) sidebarToggle(c *ui.Context) {
 }
 
 // plainButton is a button with no face of its own until the pointer is
-// over it, as the design's toolbar and section controls are.
+// over it, as the design's toolbar and section controls are. A width of 0
+// fits the content.
 func (a *App) plainButton(c *ui.Context, label string, width, height float32) ui.Element {
-	button := ui.Button(c, "").Label(label).Tooltip(label).Size(width, height).Radius(7).
-		Border(0, ui.Transparent).Background(ui.Transparent)
+	button := ui.ButtonBase(c).Label(label).Tooltip(label).Height(height).Radius(7)
+	if width > 0 {
+		button.Width(width)
+	}
 	if button.Hovered() {
 		button.Background(a.pal.hover)
 	}

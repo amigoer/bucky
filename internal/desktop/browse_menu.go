@@ -91,8 +91,7 @@ func (a *App) selectionBar(c *ui.Context) {
 				})
 				barSeparator(c)
 				label := a.t("selection.clear")
-				clear := ui.Button(c, "").Label(label).Tooltip(label).Size(32, 32).Radius(9).
-					Border(0, ui.Transparent).Background(ui.Transparent)
+				clear := ui.ButtonBase(c).Label(label).Tooltip(label).Size(32, 32).Radius(9)
 				color := ui.RGBA(255, 255, 255, 0.6)
 				if clear.Hovered() {
 					clear.Background(ui.RGBA(255, 255, 255, 0.1))
@@ -118,8 +117,7 @@ const (
 // barButton is one action of the floating selection bar. One a read-only
 // connection does not allow stays in place, dimmed, and says why.
 func (a *App) barButton(c *ui.Context, glyph *ui.SVG, label string, look int, disabled bool, action func()) {
-	button := ui.Button(c, "").Label(label).Height(32).PaddingX(11).Radius(9).
-		Border(0, ui.Transparent).Background(ui.Transparent).Disabled(disabled)
+	button := ui.ButtonBase(c).Label(label).Height(32).PaddingX(11).Radius(9).Disabled(disabled)
 	color := ui.Hex("#f5f5f7")
 	rest, hover := ui.Transparent, ui.RGBA(255, 255, 255, 0.1)
 	switch look {
