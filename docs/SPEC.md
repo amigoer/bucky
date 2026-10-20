@@ -4,7 +4,7 @@
 
 Bucky 是开源、免费、全平台、AI 原生的对象存储桌面客户端。项目名为 Bucky，仓库为 `amigoer/bucky`，CLI 命令为 `bucky`。
 
-**当前决定：v0.1 接入腾讯云 COS、阿里云 OSS、AWS S3 和 Cloudflare R2 四种类型，其他服务后续按类型逐个接入。** 本仓库仍处于文档规划阶段，尚未开始工程实现。
+**当前决定：v0.1 接入腾讯云 COS、阿里云 OSS、AWS S3 和 Cloudflare R2 四种类型，其他服务后续按类型逐个接入。** v0.1 正在实现，当前进度见开发规划。
 
 | 文档 | 维护内容 |
 | --- | --- |
@@ -14,6 +14,7 @@ Bucky 是开源、免费、全平台、AI 原生的对象存储桌面客户端�
 | [ADR-001](adr/0001-tech-stack.md) | 技术栈及依赖选型 |
 | [ADR-002](adr/0002-r2-first-storage.md) | 简单分层、R2 首版与按类型扩展的决策 |
 | [ADR-003](adr/0003-cloudflare-oauth-connection.md) | 浏览器 Cloudflare 登录、单桶 R2 令牌与凭证存储 |
+| [ADR-004](adr/0004-native-go-desktop-ui.md) | 桌面端改为 MyGo 纯 Go 原生界面 |
 | [ADR-005](adr/0005-four-storage-types-first-release.md) | v0.1 接入 COS、OSS、S3、R2 四种类型 |
 
 原先首版多厂商和 v0.2 直接开展跨云同步的范围由 ADR-002 替代；ADR-002 中 v0.1 只接 R2 的决定又由 ADR-005 替代。具体阶段清单只在开发规划维护，避免多份任务表漂移。
