@@ -56,7 +56,7 @@ func (a *App) selectionBar(c *ui.Context) {
 		return
 	}
 	ui.Overlay(c, func() {
-		ui.Row(c).Absolute().Left(0).Right(0).Bottom(16).Justify(ui.Center).Children(func() {
+		ui.Row(c).Absolute().Left(0).Right(0).Bottom(42).Justify(ui.Center).Children(func() {
 			bar := ui.Row(c).Padding(4, 6, 4, 14).Radius(12).Gap(2).
 				AlignItems(ui.Center).Background(a.pal.hud).
 				Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.28))

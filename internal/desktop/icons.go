@@ -98,6 +98,7 @@ var (
 	iconTrash           = icon("trash-2")
 	iconType            = icon("type")
 	iconUpload          = icon("upload")
+	iconUploadCloud     = icon("upload-cloud")
 	iconVideo           = icon("video")
 	iconWifiOff         = icon("wifi-off")
 	iconX               = icon("x")

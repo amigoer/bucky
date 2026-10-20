@@ -102,8 +102,15 @@ func (a *App) previewOverlay(c *ui.Context) {
 				ui.Column(c).Grow(1).Children(func() { a.previewBody(c) })
 				a.previewMeta(c)
 			})
-			if backdrop.PressedOutside() || backdrop.OverlayShortcut(0, ui.KeyEscape) {
+			if backdrop.PressedOutside() || backdrop.OverlayShortcut(0, ui.KeyEscape) ||
+				backdrop.OverlayShortcut(0, ui.KeySpace) {
 				a.closePreview()
+			}
+			if backdrop.OverlayShortcut(0, ui.KeyLeft) {
+				a.stepPreview(-1)
+			}
+			if backdrop.OverlayShortcut(0, ui.KeyRight) {
+				a.stepPreview(1)
 			}
 		})
 	})

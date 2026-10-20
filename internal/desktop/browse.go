@@ -304,11 +304,45 @@ func (a *App) browser(c *ui.Context) {
 		if a.browse.search.active {
 			a.searchBanner(c)
 		}
-		ui.Column(c).Grow(1).Children(func() {
-			a.browserBody(c)
-		})
+		zone := ui.Column(c).Grow(1)
+		dragging := zone.FileDragOver()
+		zone.Children(func() { a.browserBody(c) })
+		if files := zone.DroppedFiles(); len(files) > 0 {
+			if a.readOnly() {
+				a.toastCurrent(a.t("browser.dropReadOnly"))
+			} else if a.location != nil {
+				a.startUploads(*a.location, files)
+			}
+		}
+		if dragging {
+			a.dropOverlay(c)
+		}
 		a.selectionBar(c)
 		a.browserFooter(c)
+	})
+}
+
+// dropOverlay shows where files dropped on the window would go.
+func (a *App) dropOverlay(c *ui.Context) {
+	place := a.prefix()
+	if place == "" && a.location != nil {
+		place = a.location.Bucket
+	}
+	text := a.t("browser.dropReadOnly")
+	if !a.readOnly() {
+		text = a.tf("browser.dropRelease", "place", place)
+	}
+	ui.Overlay(c, func() {
+		ui.Column(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).
+			Background(a.pal.primaryTint).Center().PassThrough().Children(func() {
+			box := ui.Column(c).Padding(28, 40).Radius(16).Gap(8).AlignItems(ui.Center).
+				Background(a.pal.popover).Border(2, a.pal.primaryLine)
+			box.BorderStyle(ui.BorderDashed)
+			box.Children(func() {
+				ui.Icon(c, iconUploadCloud).FontSize(28).TextColor(a.pal.primary)
+				ui.Text(c, text).FontSize(13).Bold().TextAlign(ui.Center)
+			})
+		})
 	})
 }
 

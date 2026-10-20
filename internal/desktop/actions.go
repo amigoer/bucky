@@ -174,6 +174,15 @@ func (a *App) shortcuts(c *ui.Context) {
 		if c.Shortcut(mod, ui.KeyBracketRight) {
 			a.goForward()
 		}
+		choice := a.selectedEntries()
+		if c.Shortcut(0, ui.KeySpace) && len(choice) == 1 && !choice[0].folder {
+			a.openPreview(choice[0].key)
+		}
+		if !a.readOnly() && len(choice) > 0 {
+			if c.Shortcut(mod, ui.KeyBackspace) || c.Shortcut(0, ui.KeyDelete) {
+				a.openPlan("delete", choice)
+			}
+		}
 	}
 }
 

@@ -119,6 +119,11 @@ func newPalette(dark bool, accent string) *palette {
 		p.tile = ui.RGBA(255, 255, 255, 0.05)
 		p.warningBg = ui.Oklch(0.5, 0.1, 75).Alpha(0.3)
 		p.destructiveBg = ui.Oklch(0.58, 0.2, 27).Alpha(0.18)
+		// Secondary colors have to read on a dark surface, so they are
+		// lighter than their light-theme counterparts.
+		p.warningText = ui.Oklch(0.82, 0.12, 75)
+		p.successText = ui.Oklch(0.78, 0.13, 150)
+		p.primaryText = ui.Oklch(0.78, tone.chroma*0.9, tone.hue)
 	} else {
 		p.background = ui.Hex("#ffffff")
 		p.sidebar = ui.Hex("#f4f4f6")

@@ -116,6 +116,16 @@ func New(ctx context.Context, backend *service.Service) (*App, error) {
 		sidebarOpen:  !prefs.SidebarHidden,
 		sidebarWidth: sidebarDefault,
 	}
+	app.browse.view = prefs.View
+	app.browse.sortKey = prefs.SortKey
+	app.browse.sortDir = prefs.SortDir
+	app.browse.sort = ui.SortOrder{Column: prefs.SortKey, Descending: prefs.SortDir < 0}
+	if app.browse.view == "" {
+		app.browse.view = viewList
+	}
+	if app.browse.sortDir == 0 {
+		app.browse.sortDir = 1
+	}
 	// The desktop's appearance is only readable once the app is running, so
 	// the palette starts light and is rebuilt when the window is made.
 	app.pal = newPalette(false, prefs.Accent)
@@ -444,7 +454,7 @@ func (a *App) view(c *ui.Context) {
 // titleRow draws the row the window controls share with the page heading.
 func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
 	ui.Row(c).Height(height).Padding(0, bar.Right+14, 0, bar.Left+14).
-		AlignItems(ui.Center).Gap(8).Children(func() {
+		AlignItems(ui.Center).Gap(8).DragWindow().Children(func() {
 		if !a.sidebarOpen {
 			a.sidebarToggle(c)
 		}
@@ -459,7 +469,7 @@ func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
 			if a.location != nil {
 				a.browserToolbar(c)
 			} else {
-				a.dragArea(c, height)
+				ui.Spacer(c)
 			}
 		}
 	})
@@ -483,11 +493,6 @@ func (a *App) toggleSidebar() {
 	a.sidebarOpen = !a.sidebarOpen
 	a.prefs.SidebarHidden = !a.sidebarOpen
 	a.savePrefs()
-}
-
-// dragArea fills the title row so the window moves with it.
-func (a *App) dragArea(c *ui.Context, height float32) {
-	ui.Box(c).Height(height).Grow(1).DragWindow()
 }
 
 // overlays builds the dialogs and panels above the content.

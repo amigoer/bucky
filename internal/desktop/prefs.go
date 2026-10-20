@@ -37,34 +37,36 @@ type quickPrefs struct {
 
 // prefs is the interface state that outlives a run. It holds no credentials.
 type prefs struct {
-	Theme         string            `json:"theme"`
-	Accent        string            `json:"accent"`
-	Language      string            `json:"language"`
-	View          string            `json:"view"`
-	SortKey       string            `json:"sortKey"`
-	SortDir       int               `json:"sortDir"`
-	Rate          float64           `json:"rate"`
-	Concurrency   int               `json:"concurrency"`
-	SidebarHidden bool              `json:"sidebarHidden"`
-	Collapsed     map[string]bool   `json:"collapsed"`
-	Quick         quickPrefs        `json:"quick"`
-	Columns       map[string]string `json:"columns"`
-	Usage         map[string]string `json:"usage"`
+	Theme         string          `json:"theme"`
+	Accent        string          `json:"accent"`
+	Language      string          `json:"language"`
+	View          string          `json:"view"`
+	SortKey       string          `json:"sortKey"`
+	SortDir       int             `json:"sortDir"`
+	Rate          float64         `json:"rate"`
+	Concurrency   int             `json:"concurrency"`
+	SidebarHidden bool            `json:"sidebarHidden"`
+	Collapsed     map[string]bool `json:"collapsed"`
+	Quick         quickPrefs      `json:"quick"`
+
+	// ColumnOrder and ColumnWidths keep the file list's columns as the
+	// user arranged them.
+	ColumnOrder  []string           `json:"columnOrder"`
+	ColumnWidths map[string]float32 `json:"columnWidths"`
 }
 
 func defaultPrefs() *prefs {
 	return &prefs{
-		Theme:       themeSystem,
-		Accent:      "blue",
-		Language:    systemLanguage(),
-		View:        viewList,
-		SortKey:     "name",
-		SortDir:     1,
-		Concurrency: 2,
-		Collapsed:   map[string]bool{},
-		Quick:       quickPrefs{Compress: true, WebP: true, Format: "markdown"},
-		Columns:     map[string]string{},
-		Usage:       map[string]string{},
+		Theme:        themeSystem,
+		Accent:       "blue",
+		Language:     systemLanguage(),
+		View:         viewList,
+		SortKey:      "name",
+		SortDir:      1,
+		Concurrency:  2,
+		Collapsed:    map[string]bool{},
+		Quick:        quickPrefs{Compress: true, WebP: true, Format: "markdown"},
+		ColumnWidths: map[string]float32{},
 	}
 }
 
@@ -108,11 +110,8 @@ func (s *prefsStore) load() *prefs {
 	if p.Collapsed == nil {
 		p.Collapsed = map[string]bool{}
 	}
-	if p.Columns == nil {
-		p.Columns = map[string]string{}
-	}
-	if p.Usage == nil {
-		p.Usage = map[string]string{}
+	if p.ColumnWidths == nil {
+		p.ColumnWidths = map[string]float32{}
 	}
 	if p.Concurrency < 1 {
 		p.Concurrency = 2

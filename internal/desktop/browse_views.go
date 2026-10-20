@@ -42,6 +42,10 @@ func (a *App) listView(c *ui.Context) {
 		}
 		a.entryMenu(c, m, state.shown[row])
 	}
+	state.list.Columns = ui.TableLayout{
+		Order:  a.prefs.ColumnOrder,
+		Widths: a.prefs.ColumnWidths,
+	}
 
 	columns := []ui.TableColumn{
 		{Title: a.t("browser.colName"), ID: "name", Sortable: true, MinWidth: 160},
@@ -57,6 +61,48 @@ func (a *App) listView(c *ui.Context) {
 			a.openEntry(state.shown[state.selectedIndex])
 		}
 	}
+	a.rememberColumns(state.list.Columns)
+}
+
+// rememberColumns saves the column order and widths the user gave the list.
+func (a *App) rememberColumns(layout ui.TableLayout) {
+	if len(layout.Order) == 0 && len(layout.Widths) == 0 {
+		return
+	}
+	if sameStrings(layout.Order, a.prefs.ColumnOrder) && sameWidths(layout.Widths, a.prefs.ColumnWidths) {
+		return
+	}
+	a.prefs.ColumnOrder = append([]string{}, layout.Order...)
+	widths := make(map[string]float32, len(layout.Widths))
+	for name, width := range layout.Widths {
+		widths[name] = width
+	}
+	a.prefs.ColumnWidths = widths
+	a.savePrefs()
+}
+
+func sameStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameWidths(a, b map[string]float32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for name, width := range a {
+		if b[name] != width {
+			return false
+		}
+	}
+	return true
 }
 
 // tableCell builds one cell of the list view.
@@ -230,11 +276,6 @@ func (a *App) column(c *ui.Context, location Location) {
 				item.ContextMenu(func(m *ui.Menu) { a.entryMenu(c, m, row) })
 				if item.DoubleClicked() {
 					a.openEntry(row)
-				}
-				if item.Clicked() && row.folder {
-					a.navigate(Location{
-						ProfileID: location.ProfileID, Bucket: location.Bucket, Prefix: row.key,
-					})
 				}
 			}).Fill()
 			_ = list
