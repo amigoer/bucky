@@ -2,13 +2,13 @@
 
 - 状态：已采纳，v0.1 实现进行中
 - 更新日期：2026-10-20
-- 决策依据：[ADR-002](adr/0002-r2-first-storage.md)、[ADR-003](adr/0003-cloudflare-oauth-connection.md)、[ADR-004](adr/0004-native-go-desktop-ui.md)
+- 决策依据：[ADR-002](adr/0002-r2-first-storage.md)、[ADR-003](adr/0003-cloudflare-oauth-connection.md)、[ADR-004](adr/0004-native-go-desktop-ui.md)、[ADR-005](adr/0005-four-storage-types-first-release.md)
 - 需求与验收：[SPEC](SPEC.md)
 - 开发顺序：[开发规划](development-plan.md)
 
 ## 1. 架构目标
 
-Bucky 是本地优先的对象存储客户端。采用 Go + MyGo 原生界面，一个本地核心承载桌面端、CLI 和 MCP 的业务逻辑。第一版 v0.1 只接 Cloudflare R2，先完成一个存储类型的完整体验，再逐类接入 AWS S3、阿里云 OSS 等服务。
+Bucky 是本地优先的对象存储客户端。采用 Go + MyGo 原生界面，一个本地核心承载桌面端、CLI 和 MCP 的业务逻辑。第一版 v0.1 接入腾讯云 COS、阿里云 OSS、AWS S3 和 Cloudflare R2 四种类型（ADR-005）：先在 R2 上完成完整体验，再在同一套业务用例上接入另外三种，其他服务在后续版本逐类接入。
 
 架构保持简单：单一 Go module、进程内函数调用、SQLite 持久化、系统钥匙串保存凭证。不引入远程业务服务器、微服务、消息队列、运行时插件或依赖注入框架；不为尚未接入的厂商建立空实现。
 
@@ -57,7 +57,9 @@ bucky/
 │   ├── core/             # Models, storage contracts and errors
 │   ├── service/          # Shared application operations and plans
 │   ├── drivers/
-│   │   ├── s3compat/     # Shared S3 protocol implementation
+│   │   ├── s3compat/     # Shared S3 protocol implementation for R2 and S3
+│   │   ├── oss/          # Aliyun OSS native adapter
+│   │   ├── cos/          # Tencent COS native adapter
 │   │   └── providers/    # Type registration and validated presets
 │   ├── profile/          # Connection configuration and keychain access
 │   ├── transfer/         # Queue, streaming and resumable transfers
@@ -74,7 +76,7 @@ bucky/
 └── Taskfile.yml
 ```
 
-R2 图床、分享和用量先作为 `service` 内的具体用例，出现可复用的独立职责后再拆包。OSS 接入时新增 `drivers/oss/`；COS、Kodo 和非 S3 协议适配器到对应版本再创建。
+图床、分享和用量先作为 `service` 内的具体用例，出现可复用的独立职责后再拆包。OSS、COS 接入时分别新增 `drivers/oss/`、`drivers/cos/`；Kodo 和非 S3 协议适配器到对应版本再创建。
 
 桌面入口保持在 `cmd/bucky-desktop`：MyGo 不要求 `main` 包位于仓库根目录，`mygo.json` 里的配置足以让 `go tool mygo dev` 与 `go tool mygo build` 正常工作。
 
@@ -84,16 +86,17 @@ R2 图床、分享和用量先作为 `service` 内的具体用例，出现可复
 
 | 连接类型 | 服务 | 实现方式 | 交付顺序 |
 | --- | --- | --- | --- |
-| `r2` | Cloudflare R2 | `s3compat` + R2 endpoint、region、校验策略和能力配置 | v0.1，唯一可选择的类型 |
-| `s3` | AWS S3 普通桶 | 复用 `s3compat`，增加 AWS region、凭证解析和能力配置 | v0.2 |
-| `oss` | 阿里云 OSS | 独立原生适配器，使用 OSS Go SDK v2 | v0.3 |
-| `s3-compatible` | 自定义 S3 endpoint、MinIO、RustFS、B2、Wasabi、Spaces 等 | 复用 `s3compat`，按测试记录提供预设和兼容选项 | v0.4 |
-| `cos`、`kodo` | 腾讯云 COS、七牛 Kodo | 按各家协议及原生能力接入，验证后确定复用边界 | v0.5 |
+| `r2` | Cloudflare R2 | `s3compat` + R2 endpoint、region、校验策略和能力配置 | v0.1 |
+| `s3` | AWS S3 普通桶 | 复用 `s3compat`，增加 AWS region、凭证解析和能力配置 | v0.1 |
+| `oss` | 阿里云 OSS | 独立原生适配器，使用 OSS Go SDK v2 | v0.1 |
+| `cos` | 腾讯云 COS | 独立原生适配器，使用 COS Go SDK v5 | v0.1 |
+| `s3-compatible` | 自定义 S3 endpoint、MinIO、RustFS、B2、Wasabi、Spaces 等 | 复用 `s3compat`，按测试记录提供预设和兼容选项 | 后续 |
+| `kodo` | 七牛 Kodo | 按原生能力接入，验证后确定复用边界 | 后续 |
 | `azure-blob`、`gcs` 等 | Azure Blob、Google Cloud Storage 等 | 实现相同业务契约的独立适配器 | 后续，逐类交付 |
 
 注册方式用普通 Go 工厂和类型表即可。`provider_type` 是持久化的稳定标识，未知类型返回明确错误；未实现的类型不出现在新增连接界面。SDK 和额外依赖只在相应类型开发时引入。
 
-R2 和 AWS S3 的差异在配置与驱动内处理，不复制浏览、上传和删除的业务流程。OSS 的基础读写也走原生适配器，不强制经由 S3 再叠一层；CDN 刷新属于另一个产品 API，到 OSS 增强阶段再接入。
+R2 和 AWS S3 的差异在配置与驱动内处理，不复制浏览、上传和删除的业务流程。OSS 和 COS 的基础读写也走各自的原生适配器，不强制经由 S3 再叠一层；CDN 刷新和图片处理属于另外的产品 API，到增强阶段再接入。
 
 ## 5. 存储契约
 
@@ -114,7 +117,13 @@ R2 和 AWS S3 的差异在配置与驱动内处理，不复制浏览、上传和
 
 SDK 的分页 token 当作不透明字符串使用；不能根据 token、ETag 或对象 key 推断跨厂商行为。ETag 不统一当作 MD5。
 
-## 6. R2 首版边界
+## 6. v0.1 各类型边界
+
+四种类型的支持范围相同：已存在桶内的浏览、元数据、上传下载、分片、复制/移动/删除、预览和链接分享。共同不纳入首版的有：创建/删除桶、云账号与权限管理、自动修改桶 CORS、CDN 配置和厂商增强功能。连接测试在指定桶时验证该桶的对象列举权限，不要求列举全部桶成功。
+
+表中写明的限制来自官方资料；标为「待核实」的项在对应阶段查官方文档后补齐，没有核实前不写进界面文案。
+
+### 6.1 Cloudflare R2
 
 | 项目 | 设计 |
 | --- | --- |
@@ -129,7 +138,36 @@ SDK 的分页 token 当作不透明字符串使用；不能根据 token、ETag �
 | 校验 | 按 R2 官方兼容表设置；分片 ETag 用于协议交互，不作为整个文件的内容哈希 |
 | OAuth 登录存储 | 刷新令牌与铸出的令牌 ID 存系统钥匙串；Client ID、回调地址和 scope 存 SQLite `settings`；访问令牌只存在于内存会话中 |
 
-预签名链接只能使用 R2 S3 API 域名，不能替换为自定义域名。生成链接是本地签名，不构成远端连通性或读取权限验证；界面不因此显示“连接测试成功”。预签名链接本身也是临时访问凭据，不写入日志或持久化缓存。
+预签名链接只能使用 R2 S3 API 域名，不能替换为自定义域名。生成链接是本地签名，不构成远端连通性或读取权限验证；界面不因此显示“连接测试成功”。预签名链接本身也是临时访问凭据，不写入日志或持久化缓存。这两条对四种类型都适用。
+
+### 6.2 AWS S3
+
+| 项目 | 设计 |
+| --- | --- |
+| 身份配置 | Access Key ID、Secret Access Key，可选 Session Token；可指定桶名与只读模式 |
+| Endpoint 与 Region | 按 Region 使用 AWS 官方 endpoint；自定义 endpoint 和 path-style 属于后续的 `s3-compatible` 类型 |
+| 不纳入首版 | S3 Express One Zone 目录桶、Table/Vector bucket、IAM 管理、AWS profiles 导入和 SSO/角色凭证链 |
+| 待核实 | 预签名最长有效期、校验和算法、与 R2 在条件写入和分片复制上的差异 |
+
+### 6.3 阿里云 OSS
+
+| 项目 | 设计 |
+| --- | --- |
+| 身份配置 | AccessKey ID、AccessKey Secret（建议使用只授权所需桶的 RAM 用户）；可指定桶名与只读模式 |
+| Endpoint 与地域 | 地域 endpoint（如 `oss-cn-hangzhou`），可选内网 endpoint |
+| 实现 | `drivers/oss` 使用 OSS Go SDK v2 实现基础读写、桶发现、预签名、分片和服务端复制契约 |
+| 不纳入首版 | CDN 刷新、图片处理、生命周期、版本控制和 RAM 账号管理 |
+| 待核实 | 签名版本与预签名最长有效期、校验方式、分片与复制的大小限制、条件请求支持范围 |
+
+### 6.4 腾讯云 COS
+
+| 项目 | 设计 |
+| --- | --- |
+| 身份配置 | SecretId、SecretKey（建议使用只授权所需桶的子账号）；可指定桶名（`<名称>-<APPID>`）与只读模式 |
+| Endpoint 与地域 | 地域（如 `ap-guangzhou`），endpoint 按桶名和地域生成 |
+| 实现 | `drivers/cos` 使用 COS Go SDK v5 实现基础读写、桶发现、预签名、分片和服务端复制契约 |
+| 不纳入首版 | CDN 刷新、数据万象图片处理、生命周期、版本控制和 CAM 账号管理 |
+| 待核实 | 预签名最长有效期、校验方式、分片与复制的大小限制、条件请求支持范围 |
 
 ## 7. 关键业务流程
 
@@ -180,7 +218,7 @@ plan ID 只是计划标识，不是人工授权证明。GUI 使用用户确认�
 
 桌面端、CLI 和 MCP 使用相同的系统应用数据目录。SQLite 使用事务、WAL 和适当的等待超时；数据库事务不能覆盖云网络请求。OS 文件锁保证同一数据目录一次只有一个进程执行写任务或接管恢复，其他入口返回“任务忙”，不会隐式启动第二个 worker。锁在进程退出后释放，恢复需重新核对持久化状态；首版不建设跨进程任务调度系统。
 
-CLI 在没有桌面钥匙串的系统上可显式读取进程环境凭证，仅用于该次运行，不持久化、不放在命令行参数中。平台差异在 `profile` 内封装，不能绕开只读检查。AWS 凭证链和 profiles 导入留到 AWS S3 接入时实现。
+CLI 在没有桌面钥匙串的系统上可显式读取进程环境凭证，仅用于该次运行，不持久化、不放在命令行参数中。平台差异在 `profile` 内封装，不能绕开只读检查。AWS 凭证链和 profiles 导入不在 v0.1，之后单独排期。
 
 ## 9. 错误、取消与测试
 
@@ -191,10 +229,10 @@ CLI 在没有桌面钥匙串的系统上可显式读取进程环境凭证，仅�
 测试按三层执行：
 
 1. 无网络单元测试验证用例、只读限制、计划、状态迁移和错误转换。
-2. MinIO 与 RustFS 运行相同的 S3 协议契约测试，验证分页、流式读写、复制、删除和分片；它们是测试后端，不是 v0.1 支持声明。
-3. 真实 R2 的显式集成测试验证 endpoint、桶级权限、签名、校验、预览、续传和链接有效期。普通 PR 不读取云密钥，云验证使用独立测试桶及限定 prefix，并在发布前记录结果。
+2. MinIO 与 RustFS 运行相同的 S3 协议契约测试，验证分页、流式读写、复制、删除和分片；它们是测试后端，只覆盖 `s3compat`，不是 v0.1 支持声明。
+3. COS、OSS、S3、R2 真实服务的显式集成测试验证 endpoint、单桶权限、签名、校验、预览、续传和链接有效期。普通 PR 不读取云密钥，云验证使用独立测试桶及限定 prefix，并在发布前记录结果。
 
-后续每接入一种存储类型，复用相同的业务契约测试，再补该类型的差异测试和真实服务验证。不能只换 endpoint 就宣布支持，也不能用本地 S3 测试代替 OSS 原生适配器验证。
+每接入一种存储类型，复用相同的业务契约测试，再补该类型的差异测试和真实服务验证。OSS 和 COS 目前没有选定的本地测试后端，契约测试在显式提供凭证时对真实服务运行。不能只换 endpoint 就宣布支持，也不能用本地 S3 测试代替 OSS、COS 原生适配器验证。
 
 ## 10. 官方参考
 
@@ -203,5 +241,6 @@ CLI 在没有桌面钥匙串的系统上可显式读取进程环境凭证，仅�
 - [R2 预签名链接](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)
 - [AWS S3 概念与桶类型](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html)
 - [阿里云 OSS Go SDK v2](https://github.com/aliyun/alibabacloud-oss-go-sdk-v2)
+- [腾讯云 COS Go SDK v5](https://github.com/tencentyun/cos-go-sdk-v5)
 
 这些资料约束接入方式；具体 SDK 方法与厂商限制仍需在相应实现阶段再次核实。
