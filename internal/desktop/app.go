@@ -63,8 +63,11 @@ type App struct {
 	store *prefsStore
 	prefs *prefs
 	msg   *messages
-	pal   *palette
-	win   *mygo.Window
+	// pal is the palette the frame draws with. It fades toward palTarget,
+	// which follows the appearance and accent.
+	pal       *palette
+	palTarget *palette
+	win       *mygo.Window
 
 	ctx context.Context
 
@@ -133,7 +136,8 @@ func New(ctx context.Context, backend *service.Service) (*App, error) {
 	}
 	// The desktop's appearance is only readable once the app is running, so
 	// the palette starts light and is rebuilt when the window is made.
-	app.pal = newPalette(false, prefs.Accent)
+	app.palTarget = newPalette(false, prefs.Accent)
+	app.pal = app.palTarget
 	return app, nil
 }
 
@@ -200,7 +204,7 @@ func (a *App) darkMode() bool {
 }
 
 func (a *App) refreshPalette() {
-	a.pal = newPalette(a.darkMode(), a.prefs.Accent)
+	a.palTarget = newPalette(a.darkMode(), a.prefs.Accent)
 	a.appearance++
 }
 
@@ -440,6 +444,7 @@ func (a *App) content(c *ui.Context) {
 
 // view builds the window.
 func (a *App) view(c *ui.Context) {
+	a.pal = a.palTarget.faded(c.Root())
 	c.SetTheme(a.pal.widgetTheme())
 	c.Root().Background(a.pal.background)
 

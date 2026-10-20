@@ -1,6 +1,10 @@
 package desktop
 
-import "github.com/egoist/mygo/ui"
+import (
+	"time"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // accentTone is the hue and chroma of one accent color. The lightness is
 // fixed per appearance, so every accent keeps the same contrast.
@@ -86,6 +90,10 @@ type palette struct {
 	dialogShadow ui.Color
 	// onPrimaryMuted is secondary text on the accent, as a chosen row's.
 	onPrimaryMuted ui.Color
+	// scrollbar and inverseText are the widgets' scroll bar thumbs and
+	// the text on their tooltips and toasts.
+	scrollbar   ui.Color
+	inverseText ui.Color
 
 	kinds  map[string]kindPalette
 	folder ui.Color
@@ -130,6 +138,8 @@ func newPalette(dark bool, accent string) *palette {
 		buttonShadow:   ui.RGBA(0, 0, 0, 0.05),
 		dialogRing:     ui.RGBA(0, 0, 0, 0.16),
 		dialogShadow:   ui.RGBA(0, 0, 0, 0.22),
+		scrollbar:      ui.RGBA(0, 0, 0, 0.22),
+		inverseText:    ui.Hex("#f4f4f6"),
 		kinds:          map[string]kindPalette{},
 	}
 	if dark {
@@ -158,6 +168,8 @@ func newPalette(dark bool, accent string) *palette {
 		p.buttonShadow = ui.Transparent
 		p.dialogRing = ui.RGBA(255, 255, 255, 0.14)
 		p.dialogShadow = ui.RGBA(0, 0, 0, 0.6)
+		p.scrollbar = ui.RGBA(255, 255, 255, 0.28)
+		p.inverseText = ui.Hex("#ececee")
 		p.warningBg = ui.Oklch(0.5, 0.1, 75).Alpha(0.3)
 		p.destructiveBg = ui.Oklch(0.58, 0.2, 27).Alpha(0.18)
 		// Secondary colors have to read on a dark surface, so they are
@@ -221,6 +233,54 @@ func (p *palette) kindPaletteOf(kind string) kindPalette {
 	return p.kinds["other"]
 }
 
+// paletteFade is how long the interface takes to change to another
+// appearance or accent.
+const paletteFade = 300 * time.Millisecond
+
+// paletteKey and kindKey tell apart the colors faded makes move.
+type (
+	paletteKey int
+	kindKey    struct {
+		kind       string
+		foreground bool
+	}
+)
+
+// faded returns the palette to draw this frame: each of its colors eases
+// toward p's on e, so a change of appearance or accent fades instead of
+// cutting over.
+func (p *palette) faded(e ui.Element) *palette {
+	a := ui.Animation{Duration: paletteFade, Ease: ui.EaseInOut}
+	shown := *p
+	for i, color := range shown.colors() {
+		*color = e.AnimateColor(paletteKey(i), *color, a)
+	}
+	shown.kinds = make(map[string]kindPalette, len(p.kinds))
+	for name, kind := range p.kinds {
+		shown.kinds[name] = kindPalette{
+			background: e.AnimateColor(kindKey{name, false}, kind.background, a),
+			foreground: e.AnimateColor(kindKey{name, true}, kind.foreground, a),
+		}
+	}
+	return &shown
+}
+
+// colors lists every color of the palette but the kinds'.
+func (p *palette) colors() []*ui.Color {
+	return []*ui.Color{
+		&p.background, &p.sidebar, &p.text, &p.muted, &p.faint, &p.border,
+		&p.borderStrong, &p.hover, &p.mutedFill, &p.field, &p.input, &p.card,
+		&p.popover, &p.primary, &p.primaryText, &p.primarySoft, &p.primaryTint,
+		&p.primaryLine, &p.onPrimary, &p.destructive, &p.destructiveBg,
+		&p.warning, &p.warningText, &p.warningBg, &p.success, &p.successText,
+		&p.successBg, &p.scrim, &p.hud, &p.tile, &p.logoFrom, &p.logoTo,
+		&p.primaryHover, &p.thumb, &p.thumbShadow, &p.stripe, &p.folderFill,
+		&p.folderStroke, &p.button, &p.buttonRing, &p.buttonShadow,
+		&p.dialogRing, &p.dialogShadow, &p.onPrimaryMuted, &p.scrollbar,
+		&p.inverseText, &p.folder,
+	}
+}
+
 // widgetTheme turns the palette into the theme the MyGo widgets draw with.
 func (p *palette) widgetTheme() *ui.Theme {
 	t := ui.LightTheme()
@@ -244,13 +304,8 @@ func (p *palette) widgetTheme() *ui.Theme {
 	t.Selection = p.primarySoft
 	t.Focus = p.primaryLine
 	t.Inverse = p.hud
-	t.InverseText = ui.Hex("#f4f4f6")
-	if p.dark {
-		t.InverseText = ui.Hex("#ececee")
-		t.Scrollbar = ui.RGBA(255, 255, 255, 0.28)
-	} else {
-		t.Scrollbar = ui.RGBA(0, 0, 0, 0.22)
-	}
+	t.InverseText = p.inverseText
+	t.Scrollbar = p.scrollbar
 	t.ScrollbarWidth = 8
 	t.Radius = 8
 	t.Spacing = 4

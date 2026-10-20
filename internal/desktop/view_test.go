@@ -25,7 +25,7 @@ func newTestApp(t *testing.T) *App {
 		sidebarOpen:  true,
 		sidebarWidth: sidebarDefault,
 	}
-	app.pal = newPalette(false, app.prefs.Accent)
+	app.palTarget = newPalette(false, app.prefs.Accent)
 	app.browse.view = viewList
 	app.browse.sortKey = "name"
 	app.browse.sortDir = 1
@@ -37,7 +37,7 @@ func newTestApp(t *testing.T) *App {
 func snapshot(t *testing.T, name string, app *App, dark bool) {
 	t.Helper()
 	if dark {
-		app.pal = newPalette(true, app.prefs.Accent)
+		app.palTarget = newPalette(true, app.prefs.Accent)
 	}
 	tt := ui.NewTester(app.view, 1280, 840)
 	if dark {
