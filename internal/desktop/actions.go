@@ -174,6 +174,15 @@ func (a *App) shortcuts(c *ui.Context) {
 		if c.Shortcut(mod, ui.KeyBracketRight) {
 			a.goForward()
 		}
+		if c.Shortcut(mod, ui.Key1) {
+			a.setView(viewList)
+		}
+		if c.Shortcut(mod, ui.Key2) {
+			a.setView(viewGrid)
+		}
+		if c.Shortcut(mod, ui.Key3) {
+			a.setView(viewColumns)
+		}
 		choice := a.selectedEntries()
 		if c.Shortcut(0, ui.KeySpace) && len(choice) == 1 && !choice[0].folder {
 			a.openPreview(choice[0].key)
@@ -184,6 +193,28 @@ func (a *App) shortcuts(c *ui.Context) {
 			}
 		}
 	}
+	if sidebarShortcut(c) {
+		a.toggleSidebar()
+	}
+}
+
+// sidebarShortcut is the key pair the design gives the sidebar toggle:
+// Control with Command on macOS, Control with Shift elsewhere.
+func sidebarShortcut(c *ui.Context) bool {
+	if platformIsMac() {
+		return c.Shortcut(ui.Ctrl|ui.Super, ui.KeyS)
+	}
+	return c.Shortcut(ui.Ctrl|ui.Shift, ui.KeyS)
+}
+
+// setView switches the browser's view and remembers it.
+func (a *App) setView(view string) {
+	if a.browse.view == view {
+		return
+	}
+	a.browse.view = view
+	a.prefs.View = view
+	a.savePrefs()
 }
 
 // overlayOpen reports whether a panel is covering the window.

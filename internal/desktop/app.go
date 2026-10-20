@@ -34,6 +34,12 @@ const (
 	sidebarDefault = 248.0
 	sidebarMin     = 200.0
 	sidebarMax     = 360.0
+	// Left edge of the window controls on macOS, as the design places them.
+	trafficLightLeft = 18.0
+	// Diameter of a macOS window control. TrafficLightPosition takes the
+	// top-left corner, so the controls start half a control above the
+	// centre of the header row.
+	trafficLightSize = 14.0
 )
 
 // Location is the folder the browser shows.
@@ -136,7 +142,7 @@ func New(ctx context.Context, backend *service.Service) (*App, error) {
 func (a *App) Run() error {
 	mygo.App.WhenReady(func() {
 		a.refreshPalette()
-		a.win = mygo.NewWindow(mygo.WindowOptions{
+		options := mygo.WindowOptions{
 			Title:         "Bucky",
 			Width:         1280,
 			Height:        840,
@@ -145,7 +151,20 @@ func (a *App) Run() error {
 			StateKey:      "main",
 			TitleBarStyle: mygo.TitleBarHidden,
 			Content:       ui.View(a.view),
-		})
+		}
+		if platformIsMac() {
+			// Centre the traffic lights on the content panel's header row
+			// rather than on the window edge, as the design places them.
+			options.TrafficLightPosition = &mygo.Point{
+				X: int(trafficLightLeft),
+				Y: int(panelInset + titleBarHeight/2 - trafficLightSize/2),
+			}
+		} else {
+			// The system's own window buttons fill the bar at the top right,
+			// so give them the header row's height to sit in.
+			options.TitleBarHeight = int(titleBarHeight)
+		}
+		a.win = mygo.NewWindow(options)
 		a.sweepStaged(a.ctx)
 		a.loadProfiles()
 		a.loadTasks()
@@ -426,10 +445,10 @@ func (a *App) view(c *ui.Context) {
 	root := c.Root().Background(a.pal.sidebar)
 
 	bar := c.TitleBar()
+	// The header row keeps the design's height. TitleBar.Height would be
+	// larger, since it counts the room above and below the window controls,
+	// which are centred in this row instead.
 	top := float32(titleBarHeight)
-	if bar.Height > top {
-		top = bar.Height
-	}
 
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
 		if a.sidebarOpen {
@@ -452,13 +471,20 @@ func (a *App) view(c *ui.Context) {
 }
 
 // titleRow draws the row the window controls share with the page heading.
-// The controls sit over the sidebar on macOS and over this row elsewhere,
-// which is why only the trailing side reserves room for them.
+// The sidebar toggle comes first, as in the design, so the row reads the
+// same whether the sidebar is open or not.
 func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
-	ui.Row(c).Height(height).Padding(0, bar.Right+14, 0, 14).
-		AlignItems(ui.Center).Gap(8).DragWindow().Children(func() {
-		if !a.sidebarOpen {
-			a.sidebarToggle(c)
+	lead := float32(14)
+	if !a.sidebarOpen && bar.Left > 0 {
+		// Without the sidebar the panel reaches the window edge, so this row
+		// has to clear the window controls itself.
+		lead = bar.Left + 14 - panelInset
+	}
+	ui.Row(c).Height(height).Padding(0, bar.Right+14, 0, lead).
+		AlignItems(ui.Center).Gap(10).DragWindow().Children(func() {
+		a.sidebarToggle(c)
+		if a.pageTitleText() != "" || a.location != nil {
+			ui.Box(c).Width(1).Height(16).Background(a.pal.borderStrong)
 		}
 		switch a.page {
 		case pageTransfers:
@@ -477,6 +503,19 @@ func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
 	})
 }
 
+// pageTitleText names the page when it is not the file browser.
+func (a *App) pageTitleText() string {
+	switch a.page {
+	case pageTransfers:
+		return a.t("transfers.title")
+	case pageUsage:
+		return a.t("usage.title")
+	case pageSettings:
+		return a.t("settings.title")
+	}
+	return ""
+}
+
 func (a *App) pageTitle(c *ui.Context, title string) {
 	ui.Text(c, title).FontSize(15).Bold()
 	ui.Spacer(c)
@@ -484,10 +523,27 @@ func (a *App) pageTitle(c *ui.Context, title string) {
 
 // sidebarToggle shows and hides the sidebar.
 func (a *App) sidebarToggle(c *ui.Context) {
-	button := ui.Button(c, "").Label(a.t("sidebar.hide")).Tooltip(a.t("sidebar.hide")).Size(28, 28)
-	button.Children(func() { ui.Icon(c, iconPanelLeft).FontSize(16) })
+	label := a.t("sidebar.hide")
+	if !a.sidebarOpen {
+		label = a.t("sidebar.show")
+	}
+	a.ghostButton(c, iconPanelLeft, label, 28, false, a.toggleSidebar)
+}
+
+// ghostButton is an icon button with no face of its own until the pointer
+// is over it, as the design's toolbar and section controls are. An active
+// button keeps a face, for the page it is on.
+func (a *App) ghostButton(c *ui.Context, glyph *ui.SVG, label string, size float32, active bool, action func()) {
+	button := ui.Button(c, "").Label(label).Tooltip(label).Size(size, size)
+	button.Background(ui.Transparent)
+	if active {
+		button.Background(a.pal.hover)
+	} else if button.Hovered() {
+		button.Background(a.pal.hover)
+	}
+	button.Children(func() { ui.Icon(c, glyph).FontSize(size * 0.56) })
 	if button.Clicked() {
-		a.toggleSidebar()
+		action()
 	}
 }
 

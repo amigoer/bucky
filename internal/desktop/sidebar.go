@@ -16,13 +16,15 @@ func (a *App) sidebar(c *ui.Context, top float32, bar ui.TitleBar) {
 	})
 }
 
-// sidebarHeader carries the brand and the sidebar toggle.
+// sidebarHeader carries the brand on the content header's line, so the
+// navigation below it starts level with the content body.
 func (a *App) sidebarHeader(c *ui.Context, top float32, bar ui.TitleBar) {
-	ui.Row(c).Height(top).PaddingStart(bar.Left + 4).PaddingEnd(4).
-		AlignItems(ui.Center).Gap(6).DragWindow().Children(func() {
-		a.brand(c)
-		ui.Spacer(c)
-		a.sidebarToggle(c)
+	ui.Column(c).Height(top+panelInset).Padding(panelInset, 0, 0, 0).Children(func() {
+		ui.Row(c).Height(top).PaddingStart(bar.Left + 4).AlignItems(ui.Center).
+			DragWindow().Children(func() {
+			a.brand(c)
+			ui.Spacer(c)
+		})
 	})
 }
 
@@ -32,12 +34,9 @@ func (a *App) connections(c *ui.Context) {
 		ui.Row(c).PaddingX(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, a.t("sidebar.connections")).FontSize(11).Bold().
 				TextColor(a.pal.faint).Grow(1)
-			button := ui.Button(c, "").Label(a.t("sidebar.addConnection")).
-				Tooltip(a.t("sidebar.addConnection")).Size(22, 22)
-			button.Children(func() { ui.Icon(c, iconPlus).FontSize(13) })
-			if button.Clicked() {
+			a.ghostButton(c, iconPlus, a.t("sidebar.addConnection"), 22, false, func() {
 				a.openConnect("")
-			}
+			})
 		})
 		ui.Scroll(c).Grow(1).Gap(2).Children(func() {
 			if a.profilesBusy && len(a.profiles) == 0 {
@@ -199,14 +198,7 @@ func (a *App) sidebarFooter(c *ui.Context) {
 
 // footerIcon is one of the two page buttons beside the image host.
 func (a *App) footerIcon(c *ui.Context, glyph *ui.SVG, label string, active bool, action func()) {
-	button := ui.Button(c, "").Label(label).Tooltip(label).Size(32, 32)
-	if active {
-		button.Background(a.pal.hover)
-	}
-	button.Children(func() { ui.Icon(c, glyph).FontSize(15) })
-	if button.Clicked() {
-		action()
-	}
+	a.ghostButton(c, glyph, label, 32, active, action)
 }
 
 // transferTray summarises the transfer queue and opens the transfers page.

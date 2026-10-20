@@ -306,11 +306,11 @@ func (a *App) transferActions(c *ui.Context, task *core.TransferTask) {
 	})
 }
 
-// iconAction is a small icon-only button.
+// iconAction is a small icon-only button, flat until the pointer is on it.
 func (a *App) iconAction(c *ui.Context, glyph *ui.SVG, label string) bool {
-	button := ui.Button(c, "").Label(label).Tooltip(label).Size(26, 26)
-	button.Children(func() { ui.Icon(c, glyph).FontSize(14) })
-	return button.Clicked()
+	clicked := false
+	a.ghostButton(c, glyph, label, 26, false, func() { clicked = true })
+	return clicked
 }
 
 // transferCommand runs a queue command and refreshes the page.

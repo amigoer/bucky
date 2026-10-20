@@ -18,11 +18,13 @@ func (a *App) browserToolbar(c *ui.Context) {
 
 // toolButton is a small icon-only button of the toolbar.
 func (a *App) toolButton(c *ui.Context, glyph *ui.SVG, label string, disabled bool, action func()) {
-	button := ui.Button(c, "").Label(label).Tooltip(label).Size(28, 28).Disabled(disabled)
-	button.Children(func() { ui.Icon(c, glyph).FontSize(16) })
-	if button.Clicked() {
-		action()
+	if disabled {
+		button := ui.Button(c, "").Label(label).Tooltip(label).Size(28, 28).Disabled(true)
+		button.Background(ui.Transparent)
+		button.Children(func() { ui.Icon(c, glyph).FontSize(16) })
+		return
 	}
+	a.ghostButton(c, glyph, label, 28, false, action)
 }
 
 // breadcrumbBar shows the path to the folder in view.
