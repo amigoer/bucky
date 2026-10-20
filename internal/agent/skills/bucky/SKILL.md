@@ -1,6 +1,6 @@
 ---
 name: bucky
-description: Inspect Cloudflare R2 objects through saved Bucky connections and prepare destructive operations for independent human approval.
+description: Inspect stored objects through saved Bucky connections and prepare destructive operations for independent human approval.
 ---
 
 # Bucky

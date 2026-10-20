@@ -34,7 +34,7 @@ func Run(ctx context.Context) error {
 	a := &app{stdout: os.Stdout}
 	root := &cobra.Command{
 		Use:           "bucky",
-		Short:         "Manage Cloudflare R2 object storage",
+		Short:         "Browse and manage object storage",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
