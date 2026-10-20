@@ -9,6 +9,7 @@ import (
 	"log"
 	"math"
 	"runtime"
+	"time"
 
 	"github.com/amigoer/bucky/internal/core"
 	"github.com/amigoer/bucky/internal/service"
@@ -38,9 +39,10 @@ const (
 	// top-left corner, so the controls start half a control above the
 	// centre of the header row.
 	trafficLightSize = 14.0
-	// Width of the three macOS window controls and the gaps between them.
-	trafficLightsWidth = 52.0
 )
+
+// sidebarSlide is how long the sidebar takes to slide in or out.
+const sidebarSlide = 250 * time.Millisecond
 
 // Location is the folder the browser shows.
 type Location struct {
@@ -454,12 +456,22 @@ func (a *App) view(c *ui.Context) {
 	// which are centred in this row instead.
 	top := float32(titleBarHeight)
 
+	// shown is how much of the sidebar this frame shows as it slides; the
+	// content follows its edge.
+	open := float32(0)
+	if a.sidebarOpen {
+		open = 1
+	}
+	shown := c.Root().AnimateWith("sidebar", open, sidebarSlide, ui.EaseInOut) * a.sidebarWidthClamped()
+
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		if a.sidebarOpen {
-			a.sidebar(c, top, bar)
+		if shown > 0 {
+			ui.Row(c).Width(shown).Shrink(0).AlignItems(ui.Stretch).Clip().Children(func() {
+				a.sidebar(c, top, bar, shown)
+			})
 		}
 		ui.Column(c).Grow(1).Background(a.pal.background).Children(func() {
-			a.titleRow(c, top, bar)
+			a.titleRow(c, top, bar, shown)
 			ui.Column(c).Grow(1).Children(func() { a.content(c) })
 		})
 	})
@@ -470,8 +482,9 @@ func (a *App) view(c *ui.Context) {
 }
 
 // titleRow draws the header of the page. With the sidebar hidden it also
-// clears the window controls and carries the toggle that brings it back.
-func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
+// clears the window controls and carries the toggle that brings it back;
+// shown is the width of the sidebar still on screen as it slides away.
+func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar, shown float32) {
 	lead := float32(18)
 	if a.page == pageBrowse && a.location != nil {
 		lead = 12
@@ -482,8 +495,8 @@ func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
 	row.Children(func() {
 		if !a.sidebarOpen {
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				if controls := a.windowControlsWidth(bar); controls > 0 {
-					ui.Box(c).Width(controls)
+				if right := a.windowControlsRight(bar); right > 0 {
+					ui.Box(c).Width(max(0, right-shown-lead))
 				}
 				a.sidebarToggle(c)
 			})
@@ -508,13 +521,14 @@ func (a *App) titleRow(c *ui.Context, height float32, bar ui.TitleBar) {
 	})
 }
 
-// windowControlsWidth is the room the macOS window controls take from the
-// start of a header row that begins at the window edge.
-func (a *App) windowControlsWidth(bar ui.TitleBar) float32 {
+// windowControlsRight is where the macOS window controls end, from the
+// window's left edge, or 0 where none sit on the left. The system lays them
+// out, so their spacing varies with its version.
+func (a *App) windowControlsRight(bar ui.TitleBar) float32 {
 	if !platformIsMac() || bar.Left <= 0 {
 		return 0
 	}
-	return trafficLightsWidth
+	return bar.Left
 }
 
 func (a *App) pageTitle(c *ui.Context, title string) {
@@ -524,21 +538,58 @@ func (a *App) pageTitle(c *ui.Context, title string) {
 // segments is a segmented control of labels with a raised thumb on the
 // chosen one. It reports a new choice.
 func (a *App) segments(c *ui.Context, index *int, label string, labels []string) bool {
+	// Each segment is as wide as its label in the chosen weight, so that
+	// choosing it moves nothing.
+	widths, lefts := make([]float32, len(labels)), make([]float32, len(labels))
+	total := float32(0)
+	for i, text := range labels {
+		width, _ := c.MeasureText(0, ui.Span{Text: text, Size: 12, Weight: 600})
+		widths[i] = float32(math.Ceil(float64(width))) + 2*segmentInset + 20
+		lefts[i] = total
+		total += widths[i]
+	}
 	seg := ui.SegmentedBase(c, index, len(labels))
-	seg.Track.Padding(2).Radius(8).Background(a.pal.mutedFill).Label(label).Shrink(0).Children(func() {
-		for i, text := range labels {
-			segment := seg.Segment(i).Height(24).PaddingX(10).Center().Radius(6)
-			color, weight := a.pal.muted, 500
-			if i == *index {
-				segment.Background(a.pal.thumb).Shadow(0, 1, 2, 0, a.pal.thumbShadow)
-				color, weight = a.pal.text, 600
+	seg.Track.Size(total, segmentHeight).Radius(8).Background(a.pal.mutedFill).Label(label).Shrink(0).
+		Children(func() {
+			if *index >= 0 && *index < len(labels) {
+				a.segmentThumb(c).Left(lefts[*index]).Width(widths[*index])
 			}
-			segment.Children(func() {
-				ui.Text(c, text).FontSize(12).FontWeight(weight).TextColor(color).SingleLine()
-			})
-		}
-	})
+			for i, text := range labels {
+				segment := seg.Segment(i).Absolute().Left(lefts[i]).Top(0).Size(widths[i], segmentHeight).Center()
+				color, weight := a.pal.muted, 500
+				if i == *index {
+					color, weight = a.pal.text, 600
+				}
+				segment.Children(func() {
+					ui.Text(c, text).FontSize(12).FontWeight(weight).TextColor(color).SingleLine()
+				})
+			}
+		})
 	return seg.Track.Changed()
+}
+
+// A segmented control's segments are segmentHeight tall, and the thumb sits
+// segmentInset inside the chosen one.
+const (
+	segmentHeight = 28
+	segmentInset  = 2
+)
+
+// segmentSlide is how long a segmented control's thumb takes to slide to
+// the segment chosen.
+const segmentSlide = 220 * time.Millisecond
+
+// segmentThumb is the raised face of the chosen segment, placed over it by
+// the caller, and it slides when the choice moves it. MyGo paints elements
+// in flow before absolute ones, so the segments are absolute too, built
+// after the thumb to paint over it.
+func (a *App) segmentThumb(c *ui.Context) ui.Element {
+	thumb := ui.Box(c).Absolute().Top(0).Bottom(0).Padding(segmentInset).
+		Transition(ui.ElementTransition{Duration: segmentSlide, Ease: ui.EaseInOut, Position: true, Size: true})
+	thumb.Children(func() {
+		ui.Box(c).Fill().Radius(6).Background(a.pal.thumb).Shadow(0, 1, 2, 0, a.pal.thumbShadow)
+	})
+	return thumb
 }
 
 // primaryAction is a page's one main action, in the accent color.

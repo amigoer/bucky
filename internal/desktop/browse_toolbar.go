@@ -124,14 +124,16 @@ func (a *App) viewSwitch(c *ui.Context) {
 		}
 	}
 	seg := ui.SegmentedBase(c, &index, len(views))
-	seg.Track.Padding(2).Radius(8).Background(a.pal.mutedFill).Children(func() {
+	const width = 32 + 2*segmentInset
+	seg.Track.Size(width*float32(len(views)), segmentHeight).Radius(8).Background(a.pal.mutedFill).Children(func() {
+		a.segmentThumb(c).Left(width * float32(index)).Width(width)
 		glyphs := []*ui.SVG{iconList, iconLayoutGrid, iconColumns}
 		labels := []string{a.t("browser.list"), a.t("browser.grid"), a.t("browser.columns")}
 		for i, glyph := range glyphs {
-			segment := seg.Segment(i).Size(32, 24).Center().Radius(6).Label(labels[i]).Tooltip(labels[i])
+			segment := seg.Segment(i).Absolute().Left(width*float32(i)).Top(0).Size(width, segmentHeight).Center().
+				Label(labels[i]).Tooltip(labels[i])
 			color := a.pal.muted
 			if i == index {
-				segment.Background(a.pal.thumb).Shadow(0, 1, 2, 0, a.pal.thumbShadow)
 				color = a.pal.text
 			}
 			segment.Children(func() { ui.Icon(c, glyph).FontSize(15).TextColor(color) })

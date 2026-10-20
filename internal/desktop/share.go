@@ -111,16 +111,19 @@ func (a *App) shareTabs(c *ui.Context) {
 		index = 1
 	}
 	seg := ui.SegmentedBase(c, &index, len(kinds))
-	seg.Track.Padding(2).Radius(8).Background(a.pal.mutedFill).Label(a.t("menu.share")).Children(func() {
+	seg.Track.FillWidth().Height(segmentHeight).Radius(8).Background(a.pal.mutedFill).
+		Label(a.t("menu.share")).Children(func() {
+		share := 100 / float32(len(kinds))
+		a.segmentThumb(c).LeftPercent(share * float32(index)).WidthPercent(share)
 		for i, label := range labels {
 			glyph := iconClock
 			if i == 1 {
 				glyph = iconLink
 			}
-			segment := seg.Segment(i).Grow(1).Height(24).Center().Radius(6)
+			segment := seg.Segment(i).Absolute().LeftPercent(share * float32(i)).Top(0).
+				WidthPercent(share).Height(segmentHeight).Center()
 			color, weight := a.pal.muted, 500
 			if i == index {
-				segment.Background(a.pal.thumb).Shadow(0, 1, 2, 0, a.pal.thumbShadow)
 				color, weight = a.pal.text, 600
 			}
 			segment.Children(func() {

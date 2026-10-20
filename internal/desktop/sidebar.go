@@ -8,10 +8,16 @@ import (
 )
 
 // sidebar draws the connections, the transfer tray and the page entries.
-func (a *App) sidebar(c *ui.Context, top float32, bar ui.TitleBar) {
+// While it slides, only shown of its width is on screen, and it moves with
+// its right edge.
+func (a *App) sidebar(c *ui.Context, top float32, bar ui.TitleBar, shown float32) {
 	width := a.sidebarWidthClamped()
-	ui.Column(c).Width(width).FillHeight().Background(a.pal.sidebar).
-		BorderWidth(0, 1, 0, 0).BorderColor(a.pal.border).Children(func() {
+	column := ui.Column(c).Width(width).Shrink(0).FillHeight().Background(a.pal.sidebar).
+		BorderWidth(0, 1, 0, 0).BorderColor(a.pal.border)
+	if shown < width {
+		column.Translate(shown-width, 0)
+	}
+	column.Children(func() {
 		a.sidebarHeader(c, top, bar)
 		a.connections(c)
 		a.sidebarFooter(c)
@@ -19,16 +25,20 @@ func (a *App) sidebar(c *ui.Context, top float32, bar ui.TitleBar) {
 }
 
 // sidebarHeader carries the window controls, the brand and the toggle.
+// The toggle leaves with the sidebar's closing: the title row shows its
+// own while the sidebar slides away.
 func (a *App) sidebarHeader(c *ui.Context, top float32, bar ui.TitleBar) {
 	start := float32(18)
-	if controls := a.windowControlsWidth(bar); controls > 0 {
-		start = trafficLightLeft + controls + 12
+	if right := a.windowControlsRight(bar); right > 0 {
+		start = right + 16
 	}
 	ui.Row(c).Height(top).Padding(0, 10, 0, start).Gap(8).AlignItems(ui.Center).
 		DragWindow().Children(func() {
 		a.brand(c)
 		ui.Spacer(c)
-		a.sidebarToggle(c)
+		if a.sidebarOpen {
+			a.sidebarToggle(c)
+		}
 	})
 }
 
