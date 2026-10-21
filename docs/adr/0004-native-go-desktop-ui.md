@@ -21,7 +21,7 @@ Amigoer 明确要求：完整使用 [MyGo](https://github.com/egoist/mygo) 重�
 
 MyGo 同时支持「窗口里放网页」和「窗口里放原生界面」。本项目只用后者：`mygo.NewWindow` 的 `Content` 取 `ui.View(app.view)`，窗口不创建 WebView，不加载页面，不生成 TypeScript 绑定。
 
-- 版本：`github.com/egoist/mygo`，以伪版本锁定到具体提交（当前 `v0.5.6-0.20261020115920-163d50e2acc1`）；升级单独成提交并跑完整回归。
+- 版本：`github.com/egoist/mygo`，锁定到具体版本（当前 `v0.6.2`；最初为伪版本 `v0.5.6-0.20261020115920-163d50e2acc1`）；升级单独成提交并跑完整回归。
 - MyGo 为纯 Go、无 cgo，因此桌面端与 CLI 都可以 `CGO_ENABLED=0` 构建并交叉编译；这修正了 ADR-001 中「桌面端在 macOS 和 Linux 上需要 cgo」的记录。
 - 平台要求随之下降：Linux 只需 GTK 3，不再需要 WebKitGTK；Windows 不再需要 WebView2 Runtime。
 
@@ -74,6 +74,6 @@ MyGo 自带 `mygo` CLI（`go tool mygo`），负责开发运行、打包 `.app`/
 - 交付物是单一 Go 二进制，冷启动与内存占用回到本地优先工具的水平；仓库只剩一门语言、一套依赖与命令。
 - 类型安全由编译器保证：视图直接调用服务，Go 结构体变化会在编译期暴露。
 - 代价是放弃浏览器能力：内嵌音视频/PDF 播放、富文本编辑、图表库和 CSS 生态都不再可用，需要原生重写或降级（见上）。预览面板的降级行为必须逐平台验证。
-- MyGo 目前是 0.5.x，API 仍在演进；伪版本锁定 + 独立升级提交是控制风险的手段。
+- MyGo 目前是 0.6.x，API 仍在演进；锁定具体版本 + 独立升级提交是控制风险的手段。
 - 界面测试改为 `ui.NewTester` 的无窗口渲染（`internal/desktop/view_test.go`），设置 `BUCKY_SNAPSHOT_DIR` 时会把每页渲染成 PNG，便于人工核对布局。
 - 设计稿目录 `design/` 保留为视觉参考，不再参与构建；`frontend/` 已删除。

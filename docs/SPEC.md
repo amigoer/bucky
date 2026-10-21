@@ -55,7 +55,7 @@ Bucky 是开源、免费、全平台、AI 原生的对象存储桌面客户端�
 | 层 | 选型与边界 |
 | --- | --- |
 | 后端 | Go，单一 module `github.com/amigoer/bucky` |
-| 桌面 | MyGo（`github.com/egoist/mygo`）原生 UI 工具包，伪版本锁定到具体提交；仅 `cmd/bucky-desktop` 与 `internal/desktop` 依赖它 |
+| 桌面 | MyGo（`github.com/egoist/mygo`）原生 UI 工具包，锁定到具体版本；仅 `cmd/bucky-desktop` 与 `internal/desktop` 依赖它 |
 | 桌面界面 | Go 视图（`ui` 包）直接调用 `service`，无绑定、无 IPC、无前端构建；图标取自 Lucide（ISC），中英文案随二进制嵌入 |
 | R2 / S3 | AWS SDK for Go v2 `service/s3`；协议差异集中在适配器和类型配置 |
 | COS / OSS | 腾讯云 `cos-go-sdk-v5`、阿里云 `alibabacloud-oss-go-sdk-v2` 原生适配器，基础读写也走原生 SDK；版本在各自接入阶段核实并锁定 |
