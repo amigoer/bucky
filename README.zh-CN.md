@@ -99,6 +99,15 @@ R2 接入已经实现，但尚未在真实 Cloudflare 账号上验证；协议�
 
 目前还没有发布版本。第一个版本会在 [GitHub Releases](https://github.com/amigoer/bucky/releases) 提供 macOS、Windows、Linux 安装包。在本仓库页面选择 Watch → Custom → Releases，发布时就会收到通知。
 
+## 从源码构建
+
+需要 Go 1.27.1 或更高版本，以及 [Task](https://taskfile.dev)。
+
+```sh
+task run      # 运行一次桌面应用
+task build    # 构建 CLI 并打包桌面应用
+```
+
 ## 反馈
 
 想法、需求和 bug 都欢迎提到 [GitHub Issues](https://github.com/amigoer/bucky/issues)。
