@@ -140,6 +140,15 @@ There is no release yet. The first one will bring installers for macOS, Windows 
 [GitHub Releases](https://github.com/amigoer/bucky/releases). Choose Watch → Custom → Releases
 on this repository to get notified.
 
+## Build from source
+
+You need Go 1.27.1 or later and [Task](https://taskfile.dev).
+
+```sh
+task run      # run the desktop app once
+task build    # build the CLI and package the desktop app
+```
+
 ## Feedback
 
 Ideas, requests and bug reports are welcome in
